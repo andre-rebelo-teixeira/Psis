@@ -1,54 +1,42 @@
-#include <cstdlib>
 #include <ncurses.h>
-#include "remote-char.h"
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>  
  #include <ctype.h> 
  #include <stdlib.h>
- 
-int create_fifo() {
-    int fd = -1;
-    
-    while((fd = open(FIFO_LOCATION,O_WRONLY)) == -1) {
-        if (mkfifo(FIFO_LOCATION, 0666) != 0) {
-            perror("Error creating FIFO");
-            exit(EXIT_FAILURE);
-        } else {
-            printf("FIFO created\n");
-        }
-    }
 
-    return fd;
-}
+ #include "remote-char.h"
 
 int main()
 {
+    int fd;
+    char str[2];
+    message_t msg;
+
     //TODO_4
     // create and open the FIFO for writing
-    int fd = create_fifo();
+    while((fd= open(FIFO_PATH, O_WRONLY))== -1){
+	  if(mkfifo(FIFO_PATH, 0666)!=0){
+		    printf("problem creating the fifo_lab3\n");
+			exit(-1);
+	  }else{
+            printf("fifo_lab3 created\n");
+	  }
+	}
+
+    printf("FIFO communicating\n");
 
     //TODO_5
     // read the character from the user
-    char c; 
-    printf("Enter the character: ");
-    if (scanf("%c", &c) != 1) {
-        perror("Error reading character");
-        exit(EXIT_FAILURE);
-    }
-
+    printf("choose your character:");
+	fgets(str, 2, stdin);
 
     // TODO_6
     // send connection message
-    message m;
-    m.msg_type = CONNECTION;
-    m.selected_charater = c;
-
-    if (write(fd, &m, sizeof(message)) == -1) {
-        perror("Error writing to FIFO");
-        exit(EXIT_FAILURE);
-    }
+    msg.type = CONNECT;
+    msg.character = str[0];
+    write(fd, &msg, sizeof(message_t));
 
 	initscr();			/* Start curses mode 		*/
 	cbreak();				/* Line buffering disabled	*/
@@ -58,7 +46,6 @@ int main()
     
     int ch;
 
-    m.msg_type = 1;
     int n = 0;
     do
     {
@@ -68,27 +55,33 @@ int main()
         {
             case KEY_LEFT:
                 mvprintw(0,0,"%d Left arrow is pressed", n);
+                msg.direction = LEFT;
                 break;
             case KEY_RIGHT:
                 mvprintw(0,0,"%d Right arrow is pressed", n);
+                msg.direction = RIGHT;
                 break;
             case KEY_DOWN:
                 mvprintw(0,0,"%d Down arrow is pressed", n);
+                msg.direction = DOWN;
                 break;
             case KEY_UP:
                 mvprintw(0,0,"%d :Up arrow is pressed", n);
+                msg.direction = UP;
                 break;
             default:
                 ch = 'x';
                     break;
         }
         refresh();			/* Print it on to the real screen */
+
         //TODO_9
         // prepare the movement message
-        
+        msg.type = MOVE;
 
         //TODO_10
         //send the movement message
+        write(fd, &msg, sizeof(message_t));
         
     }while(ch != 27);
     
