@@ -2,16 +2,13 @@ CC = gcc
 NCURSES = -lncurses
 ZMQ = -lzmq
 
-all: game-server outer-space-display astronaut-client 
+all: game-server astronaut-client 
 
-game-server: game-server.c
+game-server: game-server.c game-server.h messages.h list.h
 	$(CC) game-server.c -o game-server $(NCURSES) $(ZMQ)
-
-outer-space-display: outer-space-display.c
-	$(CC) outer-space-display.c -o outer-space-display $(NCURSES) $(ZMQ)
-
+	
 astronaut-client: astronaut-client.c
 	$(CC) astronaut-client.c -o astronaut-client $(NCURSES) $(ZMQ)
 
 clean:
-	rm -f game-server outer-space-display astronaut-client
+	rm -f game-server astronaut-client

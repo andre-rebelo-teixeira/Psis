@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "messages.h": "c",
+        "hashTable.C": "cpp",
+        "ncurses.h": "c"
+    }
+}

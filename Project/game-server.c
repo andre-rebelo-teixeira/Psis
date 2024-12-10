@@ -1,4 +1,3 @@
-#include <iterator>
 #include <ncurses.h>
 #include <time.h>
 #include <zmq.h>
@@ -7,48 +6,13 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+#include <sys/types.h>
+
 #include<unistd.h>
 
 #include "list.h"
 #include "messages.h"
-
-#define SERVER_ADDRESS "tcp://*:5555" // Server binds to this address
-
-#define min(a, b) ((a) < (b) ? (a) : (b))
-#define max(a, b) ((a) > (b) ? (a) : (b))
-
-#define MAX_PLAYERS 8
-#define START_ALIENS_COUNT 4 
-#define GRID_SIZE 20
-#define MAX_MSG_LEN 256
-
-
-typedef struct{
-    int x;
-    int y;
-} position;
-typedef struct {
-    int x; 
-    int y;
-} Alien; 
-
-typedef struct {
-    int x;
-    int y;
-    char name;
-    int score;
-    bool stunned; 
-    time_t end_stun_time;
-} Player;
-
-// Game elements
-typedef struct {
-    Player players[MAX_PLAYERS];
-    bool players_name_used[MAX_PLAYERS];
-    unsigned int player_count;
-    List *aliens; 
-    char grid[GRID_SIZE][GRID_SIZE];
-} GameState;
+#include "game-server.h"
 
 static inline unsigned int get_random_number(unsigned int min, unsigned int max)
 {
@@ -71,26 +35,22 @@ void draw_border_with_numbers() {
     // Enable the desired color pair for the border
     attron(COLOR_PAIR(4));
     char border_number[] = "01234567890123456789";
-    char vertical_border[] = "+------------------+";
+    char vertical_border[] = "+--------------------+";
 
     // Top border with column numbers
     mvprintw(0, 2, "%s", border_number); // Print column numbers above the top border
-    mvprintw(1, 2, "%s", vertical_border);                // Top-left corner
+    mvprintw(1, 1, "%s", vertical_border);                // Top-left corner
 
     // Left and right borders with row numbers
     for (unsigned int row = 0; row < GRID_SIZE; row++) {
-        mvprintw(row + 3, 0, "%c", border_number[row]); // Print row numbers to the left
-        mvprintw(row + 3, 1, "|");                     // Draw left border
-        mvprintw(row + 3, GRID_SIZE + 2, "|");         // Draw right border
+        mvprintw(row + 2, 0, "%c", border_number[row]); // Print row numbers to the left
+        mvprintw(row + 2, 1, "|");                     // Draw left border
+        mvprintw(row + 2, GRID_SIZE + 2, "|");         // Draw right border
     }
 
     // Bottom border with column numbers
-    mvprintw(GRID_SIZE + 3, 1, "+"); // Bottom-left corner
-    for (int col = 0; col < GRID_SIZE; col++) {
-        mvprintw(GRID_SIZE + 3, col + 2, "-"); // Bottom border line
-    }
-    mvprintw(GRID_SIZE + 3, GRID_SIZE + 2, "+"); // Bottom-right corner
-    mvprintw(GRID_SIZE + 4, 2, "%s", border_number); // Print column numbers below the bottom border
+    mvprintw(GRID_SIZE + 2, 1, "%s", vertical_border); // Bottom border line
+    mvprintw(GRID_SIZE + 3, 2, "%s", border_number); // Print column numbers below the bottom border
 
     // Turn off the color pair
     attroff(COLOR_PAIR(4));
@@ -110,7 +70,9 @@ void draw_game_state(GameState *state) {
             } else if (ch == '-' || ch == '|') {
                 attron(COLOR_PAIR(3)); // Laser beams
             }
-            mvprintw(y + 1, x + 2, "%c", ch); // Adjusted for border
+            if (ch != ' '){
+                mvprintw(y + 2, x + 2, "%c", ch); // Adjusted for border
+            }
             attroff(COLOR_PAIR(1) | COLOR_PAIR(2) | COLOR_PAIR(3));
         }
     }
@@ -119,70 +81,75 @@ void draw_game_state(GameState *state) {
     attron(COLOR_PAIR(4));
 }
 
-void update_game_state(GameState *state, const char *message) {
-    if (strncmp(message, "UPDATE", 6) == 0) {
-        char *token = strtok((char *)message, "|");
-        while (token != NULL) {
-            if (strncmp(token, "UPDATE", 6) == 0) {
-                // Parse grid update: UPDATE|<row>,<col>,<char>
-                char *update = strtok(NULL, "|");
-                if (update) {
-                    int row, col;
-                    char ch;
-                    sscanf(update, "%d,%d,%c", &row, &col, &ch);
-                    state->grid[row][col] = ch;
-                }
-            } else if (strncmp(token, "SCORES", 6) == 0) {
-                // Parse scores: SCORES|A=10,B=20,...
-                char *scores = strtok(NULL, "|");
-                if (scores) {
-                    char astronaut;
-                    int score, idx;
-                    char *score_token = strtok(scores, ",");
-                    while (score_token != NULL) {
-                        sscanf(score_token, "%c=%d", &astronaut, &score);
-                        idx = astronaut - 'A';
-                        score_token = strtok(NULL, ",");
-                    }
-                }
-            }
-            token = strtok(NULL, "|");
+void draw_players(GameState *state){
+    for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
+        if (state->players[i].name != ' ') {
+            state->grid[state->players[i].y][state->players[i].x] = state->players[i].name;
         }
     }
+
+    return;
 }
 
-GameState* move_aliens_at_random(GameState *state) {
+void draw_shots(GameState *state) {
+    Node * node = state->shots->head;
+
+    while(node !=  NULL){
+        Shot * shot = (Shot *) node->data;
+        state->grid[shot->pos.y][shot->pos.x] = shot->shot_symbol;
+        node = node->next;
+    }
+
+    return;
+}
+
+void move_aliens_at_random(GameState *state) {
     if (state == NULL) {
         fprintf(stderr, "Game state is NULL");
-        return NULL;
+        return;
     }
 
     if (state->aliens == NULL) {
         fprintf(stderr, "Aliens list is NULL");
-        return state;
+        return;
     }
-
-    // Move the aliens to random positions
-    for (unsigned int i = 2; i < GRID_SIZE - 2; i++) {
-        for (unsigned int j = 2; j < GRID_SIZE - 2; j++) {
-            state->grid[i][j] = ' ';
-        }
-    } 
 
     Node *current = state->aliens->head;
 
     while(current != NULL) {
         Alien *alien = (Alien *)current->data;
-        int delta_x = get_random_number(-1, 1);
-        int delta_y = get_random_number(-1, 1);
+        if (time(NULL) > alien->next_move) {
+            int delta_x = get_random_number(-1, 1);
+            int delta_y = get_random_number(-1, 1);
 
-        alien->x = min(max(alien->x + delta_x, 2), GRID_SIZE - 2 - 1);
-        alien->y = min(max(alien->y + delta_y, 2), GRID_SIZE - 2 - 1);
+            alien->x = min(max(alien->x + delta_x, 2), GRID_SIZE - 2 - 1);
+            alien->y = min(max(alien->y + delta_y, 2), GRID_SIZE - 2 - 1);
+            alien->next_move = time(NULL) + 1;
+        }
+
         state->grid[alien->y][alien->x] = '*';
         current = current->next;
     }
 
-    return state;
+    return;
+}
+
+void cleanup_shot(GameState * state){
+    Node *node = state->shots->head;
+    void (*free_ptr)(void*) = free;
+    
+    while(node != NULL) {
+        Shot* shot = (Shot *)node->data;
+
+        if (time(NULL) > shot->end_time) {
+            Node * next_node = node->next;
+            remove_node(state->shots, node, free_ptr);
+            node = next_node;
+        } else {
+            node = node->next;
+        }
+    }
+    return;
 }
 
 /**
@@ -240,27 +207,92 @@ position get_start_position(char astronaut_name) {
 }
 
 /**
+ * @brief Get the firing direction object
+ * 
+ * @param astronaut_name 
+ * @return firing_direction 
+ */
+firing_direction get_firing_direction(char astronaut_name){
+    firing_direction direction = ERROR;
+
+    switch (astronaut_name) {
+        case 'A':
+        case 'E':
+            direction = LEFT_TO_RIGHT;
+            break;
+        case 'B':
+        case 'F':
+            direction = UP_TO_DOWN;
+            break;
+        case 'C':
+        case 'G':
+            direction = RIGHT_TO_LEFT;
+            break;
+        case 'D':
+        case 'H':
+            direction = DOWN_TO_UP;
+            break;
+        default:
+            break;
+    }
+
+    return direction;
+}
+
+/**
+ * @brief Get the firing direction object
+ * 
+ * @param astronaut_name 
+ * @return firing_direction 
+ */
+moving_direction  get_moving_direction(char astronaut_name){
+    moving_direction direction = HORIZONTAL;
+
+    switch (astronaut_name) {
+        case 'A':
+        case 'E':
+        case 'C':
+        case 'G':
+        direction = VERTICAL;
+            break;
+        case 'B':
+        case 'F':
+        case 'D':
+        case 'H':
+            direction = HORIZONTAL;
+            break;
+        default:
+            break;
+    }
+
+    return direction;
+}
+
+
+/**
  * @brief This function will handle the astronaut connect message
  * 
  * @param state 
  * @param msg 
  * @return GameState* 
  */
-GameState* handle_astronaut_connect(GameState* state, message msg) {
+char handle_astronaut_connect(GameState* state, message msg) {
     if (state == NULL) {
         fprintf(stderr, "Game state is NULL");
-        return NULL;
+        return ' ';
     }
 
     if (msg.type != ASTRONAUT_CONNECT) {
         fprintf(stderr, "Invalid message type");
-        return state;
+        return ' ';
     }
 
     if (state->player_count >= MAX_PLAYERS) {
         fprintf(stderr, "Maximum number of players reached");
-        return state;
+        return ' ';
     }
+
+    //printf("Passed all the checks, now will search a name");
 
     char name = 'A';
 
@@ -271,6 +303,8 @@ GameState* handle_astronaut_connect(GameState* state, message msg) {
         name += 1;
     }
 
+    //printf("Name after search is %c\n", name);
+
     // Find the first empty slot in the players array to add the new player
     for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
         // If name of the player is an empty space, then the slot is empty
@@ -280,24 +314,26 @@ GameState* handle_astronaut_connect(GameState* state, message msg) {
             state->players[i].x = pos.x;
             state->players[i].y = pos.y;
             state->players_name_used[i] = true;
+            state->players[i].next_shot_time = time(NULL) - 1;
             state->player_count++;
             break;
         }
     }
-
-    return state;
+    return name;
 }
 
-GameState* handle_astronaut_disconnet(GameState *state, message msg) {
+void  handle_astronaut_disconnect(GameState *state, message msg) {
     if (state == NULL) {
         fprintf(stderr, "Game state is NULL");
-        return NULL;
+        return;
     }
 
     if (msg.type != ASTRONAUT_DISCONNECT) {
         fprintf(stderr, "Invalid message type");
-        return state;
+        return; 
     }
+
+    //printf("Passed hanndle disconnect checks - %c\n", msg.character);
 
     for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
         if (state->players[i].name == msg.character) {
@@ -311,18 +347,202 @@ GameState* handle_astronaut_disconnet(GameState *state, message msg) {
         }
     }
 
-    return state;
+    return;
 }
 
-GameState* handle_new_message(GameState* state,  message msg) {
+position update_shot_pos(position shot, firing_direction shot_direction) {
+    switch (shot_direction) {
+        case LEFT_TO_RIGHT:
+            shot.x += 1;
+            break;
+        case RIGHT_TO_LEFT:
+            shot.x -= 1;
+            break;
+        case UP_TO_DOWN:
+            shot.y += 1;
+            break;
+        case DOWN_TO_UP:
+            shot.y -= 1;
+            break;
+        default:
+            break;
+    }
+    return shot;
+}
+
+void handle_astronaut_move(GameState *state, message msg) {
+    if (state == NULL) {
+        fprintf(stderr, "Game state is NULL");
+        return;
+    }
+
+    if (msg.type != ASTRONAUT_MOVEMENT) {
+        fprintf(stderr, "Invalid message type");
+        return;
+    }
+
+    Player p;
+    unsigned int  j = 0;
+
+    for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
+        if (state->players[i].name == msg.character) {
+            j = i;
+            p = state->players[i];
+            break;
+        }
+    }
+
+
+    if (p.stunned && time(NULL) < p.end_stun_time) {
+        return;
+    } else {
+        p.stunned = false;
+    }
+
+    moving_direction direction = get_moving_direction(p.name);
+
+    //printf("Original pos %d - %d\n", p.x, p.y);
+    if (direction == HORIZONTAL) {
+        if (msg.move == LEFT) {
+            p.x--; 
+        }
+        else if (msg.move == RIGHT){
+            p.x++;
+        }
+        p.x = min(max(p.x, 2), 17);
+    }
+    else if (direction == VERTICAL) {
+        if (msg.move == UP){
+            p.y--;
+        } else if (msg.move == DOWN) {
+            p.y++;
+        }
+        p.y = min(max(p.y, 2), 17);
+    }
+
+    state->players[j] = p;
+    //printf(" final pos %d - %d %d %d\n", p.x, p.y, direction, msg.move);
+
+    return;
+}
+
+void handle_astronaut_zap(GameState *state, message msg) {
+    if (state == NULL) {
+        fprintf(stderr, "Game state is NULL");
+        return;
+    }
+
+    if (msg.type != ASTRONAUT_ZAP) {
+        fprintf(stderr, "Invalid message type");
+        return;
+    }
+
+    Player p;
+    unsigned int j = 0;
+    for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
+        if (state->players[i].name == msg.character) {
+            j = i;
+            p = state->players[i];
+            break;
+        }
+    }
+
+    if (p.stunned && time(NULL) < p.end_stun_time) {
+        return;
+    } else {
+        p.stunned = false;
+    }
+
+    p.next_shot_time = time(NULL) + 3;
+
+    firing_direction direction = get_firing_direction(p.name);
+
+    position shot = {p.x, p.y};
+    shot = update_shot_pos(shot, direction);
+    bool zapped_player[8] = {false};
+
+    while (shot.x >= 0 && shot.x < GRID_SIZE && shot.y >= 0 && shot.y < GRID_SIZE) {
+        
+        Shot* s = (Shot *) calloc(1, sizeof(Shot));
+        if (s == NULL) {
+            perror("Failled to allocate memory for shot");
+            exit(EXIT_FAILURE);
+        }
+        s->pos.x = shot.x;
+        s->pos.y = shot.y;
+        s->end_time = time(NULL) + 0.5;
+
+        if (direction == LEFT_TO_RIGHT || direction == RIGHT_TO_LEFT) {
+            s->shot_symbol = '-';
+        } else {
+            s->shot_symbol = '|';
+        }
+
+        insert_node(state->shots, s);
+
+        // Check if the shot hit another player
+        for (unsigned int i = 0; i < MAX_PLAYERS; i++){
+            if (state->players[i].x == shot.x && state->players[i].y == shot.y) {
+                zapped_player[i] = true;
+            }
+        }
+
+        // Check if the shot it another alien
+        Node *current = state->aliens->head;
+        void (*free_ptr)(void*) = free;
+
+
+        while(current != NULL) {
+            Alien *alien = (Alien *)current->data;
+
+            if (alien->x == shot.x && alien->y == shot.y) {
+                // Remove the alien from the list
+                Node * next = current->next;
+                remove_node(state->aliens, current, free_ptr);
+                p.score++;
+
+                current = next;
+            } else {
+                current = current->next;
+            }
+        }
+        
+        shot = update_shot_pos(shot, direction);
+    }
+
+    state->players[j] = p;
+
+    for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
+        if (zapped_player[i]) {
+            state->players[i].stunned = true;
+            state->players[i].end_stun_time = time(NULL) + 10; // Stun for 5 seconds
+        }
+    }
+}
+
+message handle_new_message(GameState* state,  message msg) {
+    message response; 
+    response.character = msg.character;
+    char name = ' ';
+
     switch (msg.type) {
         case ASTRONAUT_CONNECT:
+            name = handle_astronaut_connect(state, msg);
+            response.type = RESPONSE;
+            response.character = name;  
             break;
         case ASTRONAUT_MOVEMENT:
+            handle_astronaut_move(state, msg);
+            response.type = RESPONSE;
+            response.character = msg.character;
             break;
         case ASTRONAUT_ZAP:
+            handle_astronaut_zap(state, msg);
+            response.type = RESPONSE;
+            response.character = msg.character;
             break;
         case ASTRONAUT_DISCONNECT:
+            handle_astronaut_disconnect(state, msg);
             break;
         case OUTER_SPACE_UPDATE:
             break;
@@ -330,10 +550,10 @@ GameState* handle_new_message(GameState* state,  message msg) {
             break;
     }
 
-    return state;
+    return response;
 }
 
-GameState* init_game() {
+GameState* init_game(){ 
     GameState* state = (GameState*)calloc(1, sizeof(GameState));
 
     if (state == NULL) {
@@ -353,12 +573,20 @@ GameState* init_game() {
         state->players[i].name = ' ';
         state->players[i].stunned = false;
         state->players[i].end_stun_time = 0;
+        state->players[i].next_shot_time = time(NULL) - 1;
     }
 
     // Initialize aliens
     state->aliens = create_list();
     if (state->aliens == NULL) {
         perror("Failed to create list of aliens");
+        return NULL;
+    }
+
+    state->shots = create_list();
+    
+    if (state->shots == NULL) {
+        perror("Failed to create shots list");
         return NULL;
     }
 
@@ -369,7 +597,7 @@ GameState* init_game() {
         if (alien == NULL) {
             perror("Failed to allocate alien");
         }
-
+        alien->next_move = time(NULL);
         alien->x = get_random_number(2, GRID_SIZE - 2);
         alien->y = get_random_number(2, GRID_SIZE - 2);
         insert_node(state->aliens, alien);
@@ -378,50 +606,107 @@ GameState* init_game() {
     return state;
 }
 
-int main() {
+void clear_board(GameState* state){
+    for (unsigned int i = 0; i < GRID_SIZE; i++) {
+        for (unsigned int j = 0; j < GRID_SIZE; j++) {
+            state->grid[i][j] = ' ';
+        }
+    }
+}
+
+void parent_process(){
     // Initialize NCurses
     init_ncurses();
 
-    void *context = zmq_ctx_new();
-    void *socket = zmq_socket(context, ZMQ_ROUTER);
-    int rc = zmq_bind(socket, "tcp://*:5555");
-
-    if (rc != 0) {
-        perror("Failed to bind server socket");
-        return 1;
-    }
-    
     // Initialize Game state
     GameState * state = init_game() ;
-
-    // Initialize game state
-    // ZeroMQ context and socket
-    //void *context = zmq_ctx_new();
-    //void *socket = zmq_socket(context, ZMQ_SUB);
-    //zmq_connect(socket, "tcp://localhost:5555");
-    //zmq_setsockopt(socket, ZMQ_SUBSCRIBE, "", 0);
-
-    //char buffer[MAX_MSG_LEN];
-    message msg;
-
-    while (1) {
-        // Receive messages from clients
-        int bytes_received = zmq_recv(socket, &msg, sizeof(msg), 0);
-
-        if (bytes_received == -1) {
-            perror("Receive error");
-            continue;
-        } 
-
-        clear();
-        state = move_aliens_at_random(state);
-        draw_game_state(state);
-        sleep(1);
-        refresh();
-        
-    }
 
     //// Cleanup
     //endwin();
     //return 0;
+    void *context = zmq_ctx_new();
+    void *socket = zmq_socket(context, ZMQ_REP); // PULL socket for receiving
+    if (zmq_bind(socket, ADDRESS) != 0) {
+        perror("Parent zmq_bind failed");
+        zmq_close(socket);
+        zmq_ctx_destroy(context);
+        exit(1);
+    }
+
+    message msg;
+
+    while(1) {
+        zmq_recv(socket, &msg, sizeof(message), 0);
+        clear_board(state);
+        // printf("message received - %d\n", msg.type);
+
+        message response = handle_new_message(state, msg);
+
+        for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
+            response.scores[i] = state->players[i].score;
+        }
+
+        //purintf("%c - %d\n", response.character, response.type);
+        // Answer to the client
+        zmq_send(socket, &response, sizeof(response), 0);
+
+        //printf("Message if of type %d \n", msg.type);
+        clear();
+        cleanup_shot(state);
+        draw_players(state);
+        draw_shots(state);
+        move_aliens_at_random(state);
+        draw_game_state(state);
+        refresh();
+    }
+}
+
+void child_process() {
+    void *context = zmq_ctx_new();
+    void *socket =  zmq_socket(context, ZMQ_REQ);
+
+    if (zmq_connect(socket, ADDRESS) != 0) {
+        perror("Child zmq_connect failed");
+        zmq_close(socket);
+        zmq_ctx_destroy(context);
+        exit(1);
+    }
+
+    message msg;
+    msg.type = TICK;
+    msg.move = UP;
+    msg.character = ' ';
+
+    while (1) {
+        message response;
+        zmq_send(socket, &msg, sizeof(msg), 0); // Send message to parent
+        zmq_recv(socket, &response, sizeof(response), 0); // Receive message from parent
+        usleep(1000000); // Sleep for 0.1 seconds
+
+
+
+    }
+
+    zmq_close(socket);
+    zmq_ctx_destroy(context);
+    exit(0);
+}
+
+int main() {
+    // Initi
+    pid_t pid = fork(); // Create a child process
+
+    if (pid < 0) {
+        perror("Fork failed");
+        exit(1);
+    } else if (pid == 0) {
+        // Child process
+        usleep(100000); // Small delay to ensure the parent sets up first
+        child_process();
+    } else {
+        // Parent process
+        parent_process();
+    }
+
+    return 0;
 }
