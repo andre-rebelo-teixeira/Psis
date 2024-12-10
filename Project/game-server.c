@@ -1,3 +1,4 @@
+#include <iterator>
 #include <ncurses.h>
 #include <time.h>
 #include <zmq.h>
@@ -5,8 +6,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
-#include "list.h"
+
 #include<unistd.h>
+
+#include "list.h"
+#include "messages.h"
+
+#define SERVER_ADDRESS "tcp://*:5555" // Server binds to this address
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -15,6 +21,12 @@
 #define START_ALIENS_COUNT 4 
 #define GRID_SIZE 20
 #define MAX_MSG_LEN 256
+
+
+typedef struct{
+    int x;
+    int y;
+} position;
 typedef struct {
     int x; 
     int y;
@@ -23,7 +35,7 @@ typedef struct {
 typedef struct {
     int x;
     int y;
-    int fd; 
+    char name;
     int score;
     bool stunned; 
     time_t end_stun_time;
@@ -32,6 +44,8 @@ typedef struct {
 // Game elements
 typedef struct {
     Player players[MAX_PLAYERS];
+    bool players_name_used[MAX_PLAYERS];
+    unsigned int player_count;
     List *aliens; 
     char grid[GRID_SIZE][GRID_SIZE];
 } GameState;
@@ -40,7 +54,6 @@ static inline unsigned int get_random_number(unsigned int min, unsigned int max)
 {
     return min + (rand() % (max - min + 1));
 }
-
 
 void init_ncurses() {
     initscr();
@@ -82,8 +95,6 @@ void draw_border_with_numbers() {
     // Turn off the color pair
     attroff(COLOR_PAIR(4));
 }
-
-
 
 void draw_game_state(GameState *state) {
     draw_border_with_numbers();
@@ -174,6 +185,153 @@ GameState* move_aliens_at_random(GameState *state) {
     return state;
 }
 
+/**
+ * @brief Return the default starting position of an astronaut in the grid
+ * This position is well defined according to the astronaut name, meaning that each astronaut will always start from the same position. This is not the most correct way to do it, since it removed randomness in the game, but overall was the fastest way to implement it, since this way whenever a astronaut connect, we dont need to find on of the 8 allowed row's/col's from where astronauts can shoot at aliens 
+ * 
+ * @param astronaut_name  should be a letter with values between A and H
+ * @return position the position in the grid array of the state where we should input the astronaut. If the astronaut name is invalid, the x and y values will be -1
+ */
+position get_start_position(char astronaut_name) {
+    position pos;
+    pos.x = -1; 
+    pos.y = -1;
+
+    // Fastest and more efficient way to implement this, since we don't need sequential for loops to find the astronaut
+    switch (astronaut_name){
+        case 'A':
+            pos.x = 0;
+            pos.y = GRID_SIZE / 2; 
+            break;
+        case 'B':
+            pos.x = GRID_SIZE / 2;
+            pos.y = 0;
+            break;
+        case 'C':
+            pos.x = GRID_SIZE - 1;
+            pos.y  = GRID_SIZE / 2;
+            break;
+        case 'D':
+            pos.x = GRID_SIZE / 2;
+            pos.y = GRID_SIZE - 1;
+            break;
+        case 'E':
+            pos.x = 1;
+            pos.y = GRID_SIZE / 2;
+            break;
+        case 'F':
+            pos.x = GRID_SIZE / 2;
+            pos.y = 1;
+            break;
+        case 'G':   
+            pos.x = GRID_SIZE - 2;
+            pos.y = GRID_SIZE / 2;
+            break;
+        case 'H':
+            pos.x = GRID_SIZE / 2;
+            pos.y = GRID_SIZE - 2;
+            break;
+        default:
+            break;
+    }
+
+    return pos;
+
+}
+
+/**
+ * @brief This function will handle the astronaut connect message
+ * 
+ * @param state 
+ * @param msg 
+ * @return GameState* 
+ */
+GameState* handle_astronaut_connect(GameState* state, message msg) {
+    if (state == NULL) {
+        fprintf(stderr, "Game state is NULL");
+        return NULL;
+    }
+
+    if (msg.type != ASTRONAUT_CONNECT) {
+        fprintf(stderr, "Invalid message type");
+        return state;
+    }
+
+    if (state->player_count >= MAX_PLAYERS) {
+        fprintf(stderr, "Maximum number of players reached");
+        return state;
+    }
+
+    char name = 'A';
+
+    for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
+        if (!state->players_name_used[i]) {
+            break;
+        }
+        name += 1;
+    }
+
+    // Find the first empty slot in the players array to add the new player
+    for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
+        // If name of the player is an empty space, then the slot is empty
+        if (state->players[i].name == ' ') {
+            state->players[i].name = name;
+            position pos = get_start_position(name);
+            state->players[i].x = pos.x;
+            state->players[i].y = pos.y;
+            state->players_name_used[i] = true;
+            state->player_count++;
+            break;
+        }
+    }
+
+    return state;
+}
+
+GameState* handle_astronaut_disconnet(GameState *state, message msg) {
+    if (state == NULL) {
+        fprintf(stderr, "Game state is NULL");
+        return NULL;
+    }
+
+    if (msg.type != ASTRONAUT_DISCONNECT) {
+        fprintf(stderr, "Invalid message type");
+        return state;
+    }
+
+    for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
+        if (state->players[i].name == msg.character) {
+            state->players[i].name = ' ';
+            state->players_name_used[i] = false;
+            state->player_count--;
+            state->players[i].x = -1;
+            state->players[i].y = -1;
+            state->players[i].score = -1;
+            break;
+        }
+    }
+
+    return state;
+}
+
+GameState* handle_new_message(GameState* state,  message msg) {
+    switch (msg.type) {
+        case ASTRONAUT_CONNECT:
+            break;
+        case ASTRONAUT_MOVEMENT:
+            break;
+        case ASTRONAUT_ZAP:
+            break;
+        case ASTRONAUT_DISCONNECT:
+            break;
+        case OUTER_SPACE_UPDATE:
+            break;
+        default:
+            break;
+    }
+
+    return state;
+}
 
 GameState* init_game() {
     GameState* state = (GameState*)calloc(1, sizeof(GameState));
@@ -183,6 +341,7 @@ GameState* init_game() {
         return NULL;
     }
 
+    state->player_count = 0;
     // Initialize an empty grid
     memset(state->grid, ' ', sizeof(state->grid));
 
@@ -190,8 +349,8 @@ GameState* init_game() {
     for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
         state->players[i].x = 0;
         state->players[i].y = 0;
-        state->players[i].fd = -1;
         state->players[i].score = 0;
+        state->players[i].name = ' ';
         state->players[i].stunned = false;
         state->players[i].end_stun_time = 0;
     }
@@ -222,6 +381,15 @@ GameState* init_game() {
 int main() {
     // Initialize NCurses
     init_ncurses();
+
+    void *context = zmq_ctx_new();
+    void *socket = zmq_socket(context, ZMQ_ROUTER);
+    int rc = zmq_bind(socket, "tcp://*:5555");
+
+    if (rc != 0) {
+        perror("Failed to bind server socket");
+        return 1;
+    }
     
     // Initialize Game state
     GameState * state = init_game() ;
@@ -234,17 +402,17 @@ int main() {
     //zmq_setsockopt(socket, ZMQ_SUBSCRIBE, "", 0);
 
     //char buffer[MAX_MSG_LEN];
+    message msg;
 
     while (1) {
-        // Receive a message from the server
-        //zmq_recv(socket, buffer, MAX_MSG_LEN - 1, 0);
-        
-        //buffer[MAX_MSG_LEN - 1] = '\0'; // Null-terminate the message
+        // Receive messages from clients
+        int bytes_received = zmq_recv(socket, &msg, sizeof(msg), 0);
 
-        // Update the game state
-        //update_game_state(&state, buffer);
+        if (bytes_received == -1) {
+            perror("Receive error");
+            continue;
+        } 
 
-        // Redraw the screen
         clear();
         state = move_aliens_at_random(state);
         draw_game_state(state);
