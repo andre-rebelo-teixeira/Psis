@@ -1,5 +1,5 @@
-#ifndef GAMESERVER_H
-#define GAMESERVER_H
+#ifndef UTILS_H
+#define UTILS_H
 
 #include <time.h>
 #include "list.h"
@@ -7,6 +7,7 @@
 
 #define SERVER_ADDRESS "tcp://*:5555" // Server binds to this address
 #define ADDRESS "tcp://127.0.0.1:5555"
+#define PUBSUB_ADDRESS "tcp://127.0.0.1:5556"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
@@ -65,5 +66,9 @@ typedef struct {
     List *shots;
     char grid[GRID_SIZE][GRID_SIZE];
 } GameState;
+
+void draw_game_state(GameState *state);
+void init_ncurses();
+void draw_border_with_numbers();
 
 #endif

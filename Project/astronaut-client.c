@@ -2,7 +2,7 @@
 #include <ncurses.h>
 
 #include "messages.h"
-#include "game-server.h"
+#include "utils.h"
 
 int main(){
     int n = 0;

@@ -12,7 +12,7 @@
 
 #include "list.h"
 #include "messages.h"
-#include "game-server.h"
+#include "utils.h"
 
 static inline unsigned int get_random_number(unsigned int min, unsigned int max)
 {
@@ -76,6 +76,17 @@ void draw_game_state(GameState *state) {
             attroff(COLOR_PAIR(1) | COLOR_PAIR(2) | COLOR_PAIR(3));
         }
     }
+    
+
+    // Draw score
+    mvprintw(2, GRID_SIZE + 10,  "score");
+    unsigned int num_players_on = 1;
+    for(unsigned int i = 0; i < MAX_PLAYERS; i++) {
+        if (state->players[i].name != ' ') {
+            mvprintw(2 + num_players_on++, GRID_SIZE + 10,  "%c-%d\n", state->players[i].name, state->players[i].score);
+        }
+    }
+
 
     // Draw scores
     attron(COLOR_PAIR(4));
@@ -614,6 +625,27 @@ void clear_board(GameState* state){
     }
 }
 
+void serialize_message(const message *msg, char *buffer, size_t *buffer_size) {
+    size_t offset = 0;
+
+    memcpy(buffer + offset, &msg->type, sizeof(msg->type));
+    offset += sizeof(msg->type);
+
+    memcpy(buffer + offset, &msg->move, sizeof(msg->move));
+    offset += sizeof(msg->move);
+
+    memcpy(buffer + offset, &msg->character, sizeof(msg->character));
+    offset += sizeof(msg->character);
+
+    memcpy(buffer + offset, &msg->scores, sizeof(msg->scores));
+    offset += sizeof(msg->scores);
+
+    memcpy(buffer + offset, &msg->grid, sizeof(msg->grid));
+    offset += sizeof(msg->grid);
+
+    *buffer_size = offset;
+}
+
 void parent_process(){
     // Initialize NCurses
     init_ncurses();
@@ -625,18 +657,29 @@ void parent_process(){
     //endwin();
     //return 0;
     void *context = zmq_ctx_new();
-    void *socket = zmq_socket(context, ZMQ_REP); // PULL socket for receiving
-    if (zmq_bind(socket, ADDRESS) != 0) {
-        perror("Parent zmq_bind failed");
-        zmq_close(socket);
+    void *responder = zmq_socket(context, ZMQ_REP); // REP socket for responding
+    if (zmq_bind(responder, ADDRESS) != 0) {
+        perror("Parent responder zmq_bind failed");
+        zmq_close(responder);
+        zmq_ctx_destroy(context);
+        exit(1);
+    }
+
+    void *publisher = zmq_socket(context, ZMQ_PUB); // PUB socket for publishing
+    if (zmq_bind(publisher, PUBSUB_ADDRESS) != 0) {
+        perror("Parent publisher zmq_bind failed");
+        zmq_close(publisher);
+        zmq_close(responder);
         zmq_ctx_destroy(context);
         exit(1);
     }
 
     message msg;
+    char buffer[1024];
+    size_t buffer_size;
 
     while(1) {
-        zmq_recv(socket, &msg, sizeof(message), 0);
+        zmq_recv(responder, &msg, sizeof(message), 0);
         clear_board(state);
         // printf("message received - %d\n", msg.type);
 
@@ -648,9 +691,10 @@ void parent_process(){
 
         //purintf("%c - %d\n", response.character, response.type);
         // Answer to the client
-        zmq_send(socket, &response, sizeof(response), 0);
+        zmq_send(responder, &response, sizeof(response), 0);
 
         //printf("Message if of type %d \n", msg.type);
+        
         clear();
         cleanup_shot(state);
         draw_players(state);
@@ -658,7 +702,28 @@ void parent_process(){
         move_aliens_at_random(state);
         draw_game_state(state);
         refresh();
+
+        // Publish the updated game state
+        // Create the message with the topic prepended
+        msg.type = OUTER_SPACE_UPDATE;
+        msg.character = ' ';
+        msg.move = UP;
+        for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
+            msg.scores[i] = state->players[i].score;
+        }
+        memcpy(msg.grid, state->grid, sizeof(state->grid));
+        serialize_message(&msg, buffer, &buffer_size);
+
+        // Send the topic and message as multipart
+        zmq_send(publisher, "UPDATE", 6, ZMQ_SNDMORE); // Send topic
+        zmq_send(publisher, buffer, buffer_size, 0);   // Send serialized message
     }
+
+    // Cleanup
+    zmq_close(publisher);
+    zmq_ctx_destroy(context);
+
+    exit(0);
 }
 
 void child_process() {
