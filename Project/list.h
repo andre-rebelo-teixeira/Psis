@@ -24,6 +24,7 @@ typedef struct Node {
 typedef struct List {
     Node *head;
     Node *tail;
+    unsigned int size;
 } List;
 
 /**
@@ -39,6 +40,7 @@ static inline List *create_list() {
     }
     list->head = NULL;
     list->tail = NULL;
+    list->size = 0;
     return list;
 }
 
@@ -67,6 +69,7 @@ static inline void insert_node(List *list, void *data) {
     }
 
     list->tail = new_node;
+    list->size++;
 }
 
 /**
@@ -95,6 +98,7 @@ static inline void remove_node(List *list, Node *node, void (*free_data)(void *)
         free_data(node->data);
     }
     free(node);
+    list->size = list->size > 0 ? list->size - 1 : 0;
 }
 
 /**

@@ -24,7 +24,7 @@ void draw_game_state(GameState *state);
 GameState* init_game();
 void cleanup_shot(GameState *state);
 void move_aliens_at_random(GameState *state);
-void handle_astronaut_zap(GameState *state, message msg);
+bool handle_astronaut_zap(GameState *state, message msg);
 message handle_new_message(GameState *state, message msg);
 void handle_astronaut_move(GameState *state, message msg);
 char handle_astronaut_connect(GameState *state, message msg);

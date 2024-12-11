@@ -32,6 +32,9 @@ void deserialize_message(const char *buffer, size_t buffer_size, message *msg) {
 
     memcpy(&msg->grid, buffer + offset, sizeof(msg->grid));
     offset += sizeof(msg->grid);
+
+    memcpy(&msg->game_over, buffer + offset, sizeof(msg->game_over));
+    offset += sizeof(msg->game_over);
 }
 
 /**
@@ -41,26 +44,50 @@ void deserialize_message(const char *buffer, size_t buffer_size, message *msg) {
  * @param grid the grid of the game
  * @param current_players the current players in the game
  */
-void draw_avatar_game(int scores[8], char grid[20][20], char current_players[8]) {
+void draw_avatar_game(int scores[8], char grid[20][20], char current_players[8], bool game_over) {
     draw_border_with_numbers();
 
     // Draw grid
-    for (int y = 0; y < GRID_SIZE; y++) {
-        for (int x = 0; x < GRID_SIZE; x++) {
-            char ch = grid[y][x];
-            if (ch >= 'A' && ch <= 'H') {
-                attron(COLOR_PAIR(1)); // Astronauts
-            } else if (ch == '*') {
-                attron(COLOR_PAIR(2)); // Aliens
-            } else if (ch == '-' || ch == '|') {
-                attron(COLOR_PAIR(3)); // Laser beams
+    if (!game_over){
+        for (int y = 0; y < GRID_SIZE; y++) {
+            for (int x = 0; x < GRID_SIZE; x++) {
+                char ch = grid[y][x];
+                if (ch >= 'A' && ch <= 'H') {
+                    attron(COLOR_PAIR(1)); // Astronauts
+                } else if (ch == '*') {
+                    attron(COLOR_PAIR(2)); // Aliens
+                } else if (ch == '-' || ch == '|') {
+                    attron(COLOR_PAIR(3)); // Laser beams
+                }
+                if (ch != ' '){
+                    mvprintw(y + 2, x + 2, "%c", ch); // Adjusted for border
+                }
+                attroff(COLOR_PAIR(1) | COLOR_PAIR(2) | COLOR_PAIR(3));
             }
-            if (ch != ' '){
-                mvprintw(y + 2, x + 2, "%c", ch); // Adjusted for border
-            }
-            attroff(COLOR_PAIR(1) | COLOR_PAIR(2) | COLOR_PAIR(3));
         }
+    } else {
+        mvprintw(10, 10, "G");
+        mvprintw(10, 11, "A");
+        mvprintw(10, 12, "M");
+        mvprintw(10, 13, "E");;
+
+        mvprintw(12, 11, "H");
+        mvprintw(12, 12, "A");
+        mvprintw(12, 13, "S");
+
+        mvprintw(14, 10, "E");
+        mvprintw(14, 11, "N");
+        mvprintw(14, 12, "D");
+        mvprintw(14, 13, "E");
+        mvprintw(14, 14, "D");
     }
+
+    unsigned int highest_score_index = 0;
+    
+    for(unsigned int i = 0; i < MAX_PLAYERS; i++) {
+        if (scores[i] > scores[highest_score_index])
+            highest_score_index = i;    
+    } 
     
 
     // Draw score
@@ -68,7 +95,12 @@ void draw_avatar_game(int scores[8], char grid[20][20], char current_players[8])
     unsigned int num_players_on = 1;
     for(unsigned int i = 0; i < MAX_PLAYERS; i++) {
         if (current_players[i] != ' ') {
+            if  (game_over && i == highest_score_index) {
+                attron(COLOR_PAIR(1));
+            }
+
             mvprintw(2 + num_players_on++, GRID_SIZE + 10,  "%c-%d\n", current_players[i], scores[i]);
+            attroff(COLOR_PAIR(1));
         }
     }
 
@@ -102,7 +134,7 @@ int main(){
             deserialize_message(buffer, bytes_received, &msg);
             
             clear();
-            draw_avatar_game(msg.scores, msg.grid, msg.current_players);
+            draw_avatar_game(msg.scores, msg.grid, msg.current_players, msg.game_over);
             refresh();
         }
 

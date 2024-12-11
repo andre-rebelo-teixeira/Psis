@@ -64,6 +64,7 @@ typedef struct {
     unsigned int player_count;
     List *aliens; 
     List *shots;
+    bool game_over;
     char grid[GRID_SIZE][GRID_SIZE];
 } GameState;
 

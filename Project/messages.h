@@ -21,6 +21,7 @@ typedef struct message
     char current_players[8]; // Current players in the game (for outer space update messages)
     unsigned int scores[8]; // Scores of the players (for outer space update messages)
     char grid[20][20]; // Grid of the game (for outer space update messages)
+    bool game_over; // Game over flag (for outer space update messages)
 } message;
 
 #endif

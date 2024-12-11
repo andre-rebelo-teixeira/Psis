@@ -46,7 +46,11 @@ int main(){
                 // Send the message to the server
                 zmq_send(socket, &msg, sizeof(msg), 0);
                 zmq_recv(socket, &reply, sizeof(reply), 0);
-                mvprintw(0, 0, "Received reply: %c %d\n", reply.character, message_counter++);
+                for (int i = 0; i < MAX_PLAYERS; i++) {
+                    if (reply.current_players[i] == reply.character) {
+                        mvprintw(0, 0, "Current score: %d\n", reply.scores[i]);
+                    }
+                }
                 break;
 
             case KEY_RIGHT:
@@ -56,7 +60,11 @@ int main(){
                 // Send the message to the server
                 zmq_send(socket, &msg, sizeof(msg), 0);
                 zmq_recv(socket, &reply, sizeof(reply), 0);
-                mvprintw(0, 0, "Received reply: %c %d\n", reply.character, message_counter++);
+                for (int i = 0; i < MAX_PLAYERS; i++) {
+                    if (reply.current_players[i] == reply.character) {
+                        mvprintw(0, 0, "Current score: %d\n", reply.scores[i]);
+                    }
+                }
                 break;
 
             case KEY_UP:
@@ -66,7 +74,11 @@ int main(){
                 // Send the message to the server
                 zmq_send(socket, &msg, sizeof(msg), 0);
                 zmq_recv(socket, &reply, sizeof(reply), 0);
-                mvprintw(0, 0, "Received reply: %c %d\n", reply.character, message_counter++);
+                for (int i = 0; i < MAX_PLAYERS; i++) {
+                    if (reply.current_players[i] == reply.character) {
+                        mvprintw(0, 0, "Current score: %d\n", reply.scores[i]);
+                    }
+                }
                 break;
 
             case KEY_DOWN:
@@ -76,7 +88,11 @@ int main(){
                 // Send the message to the server
                 zmq_send(socket, &msg, sizeof(msg), 0);
                 zmq_recv(socket, &reply, sizeof(reply), 0);
-                mvprintw(0, 0, "Received reply: %c %d\n", reply.character, message_counter++);
+                for (int i = 0; i < MAX_PLAYERS; i++) {
+                    if (reply.current_players[i] == reply.character) {
+                        mvprintw(0, 0, "Current score: %d\n", reply.scores[i]);
+                    }
+                }
                 break;
 
             // Shooting key is pressed
@@ -86,7 +102,11 @@ int main(){
                 // Send the message to the server
                 zmq_send(socket, &msg, sizeof(msg), 0);
                 zmq_recv(socket, &reply, sizeof(reply), 0);
-                mvprintw(0, 0, "Received reply: %c %d\n", reply.character, message_counter++);
+                for (int i = 0; i < MAX_PLAYERS; i++) {
+                    if (reply.current_players[i] == reply.character) {
+                        mvprintw(0, 0, "Current score: %d\n", reply.scores[i]);
+                    }
+                }
                 break;
 
             // Exit key is pressed
@@ -97,7 +117,11 @@ int main(){
                 // Send the message to the server
                 zmq_send(socket, &msg, sizeof(msg), 0);
                 zmq_recv(socket, &reply, sizeof(reply), 0);
-                mvprintw(0, 0, "Received reply: %c\n", reply.character);
+                for (int i = 0; i < MAX_PLAYERS; i++) {
+                    if (reply.current_players[i] == reply.character) {
+                        mvprintw(0, 0, "Final score: %d\n", reply.scores[i]);
+                    }
+                }
                 break;
 
             default:

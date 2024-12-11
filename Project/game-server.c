@@ -25,23 +25,49 @@
 void draw_game_state(GameState *state) {
     draw_border_with_numbers();
 
+
     // Draw grid
-    for (int y = 0; y < GRID_SIZE; y++) {
-        for (int x = 0; x < GRID_SIZE; x++) {
-            char ch = state->grid[y][x];
-            if (ch >= 'A' && ch <= 'H') {
-                attron(COLOR_PAIR(1)); // Astronauts
-            } else if (ch == '*') {
-                attron(COLOR_PAIR(2)); // Aliens
-            } else if (ch == '-' || ch == '|') {
-                attron(COLOR_PAIR(3)); // Laser beams
+    if (!state->game_over) {
+        for (int y = 0; y < GRID_SIZE; y++) {
+            for (int x = 0; x < GRID_SIZE; x++) {
+                char ch = state->grid[y][x];
+                if (ch >= 'A' && ch <= 'H') {
+                    attron(COLOR_PAIR(1)); // Astronauts
+                } else if (ch == '*') {
+                    attron(COLOR_PAIR(2)); // Aliens
+                } else if (ch == '-' || ch == '|') {
+                    attron(COLOR_PAIR(3)); // Laser beams
+                }
+                if (ch != ' '){
+                    mvprintw(y + 2, x + 2, "%c", ch); // Adjusted for border
+                }
+                attroff(COLOR_PAIR(1) | COLOR_PAIR(2) | COLOR_PAIR(3));
             }
-            if (ch != ' '){
-                mvprintw(y + 2, x + 2, "%c", ch); // Adjusted for border
-            }
-            attroff(COLOR_PAIR(1) | COLOR_PAIR(2) | COLOR_PAIR(3));
         }
+    } else {
+        mvprintw(10, 10, "G");
+        mvprintw(10, 11, "A");
+        mvprintw(10, 12, "M");
+        mvprintw(10, 13, "E");;
+
+        mvprintw(12, 11, "H");
+        mvprintw(12, 12, "A");
+        mvprintw(12, 13, "S");
+
+        mvprintw(14, 10, "E");
+        mvprintw(14, 11, "N");
+        mvprintw(14, 12, "D");
+        mvprintw(14, 13, "E");
+        mvprintw(14, 14, "D");
+     // ended    
     }
+
+    unsigned int highest_score_index = 0;
+    
+    for(unsigned int i = 0; i < MAX_PLAYERS; i++) {
+        if (state->players[i].score > state->players[highest_score_index].score)
+            highest_score_index = i;    
+    } 
     
 
     // Draw score
@@ -49,7 +75,12 @@ void draw_game_state(GameState *state) {
     unsigned int num_players_on = 1;
     for(unsigned int i = 0; i < MAX_PLAYERS; i++) {
         if (state->players[i].name != ' ') {
+            if  (state->game_over && i == highest_score_index) {
+                attron(COLOR_PAIR(1));
+            }
+
             mvprintw(2 + num_players_on++, GRID_SIZE + 10,  "%c-%d\n", state->players[i].name, state->players[i].score);
+            attroff(COLOR_PAIR(1));
         }
     }
 
@@ -172,8 +203,6 @@ char handle_astronaut_connect(GameState* state, message msg) {
         return ' ';
     }
 
-    //printf("Passed all the checks, now will search a name");
-
     char name = 'A';
 
     for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
@@ -183,7 +212,6 @@ char handle_astronaut_connect(GameState* state, message msg) {
         name += 1;
     }
 
-    //printf("Name after search is %c\n", name);
 
     // Find the first empty slot in the players array to add the new player
     for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
@@ -194,7 +222,7 @@ char handle_astronaut_connect(GameState* state, message msg) {
             state->players[i].x = pos.x;
             state->players[i].y = pos.y;
             state->players_name_used[i] = true;
-            state->players[i].next_shot_time = time(NULL) - 1;
+            state->players[i].next_shot_time = time(NULL);
             state->player_count++;
             break;
         }
@@ -219,7 +247,6 @@ void  handle_astronaut_disconnect(GameState *state, message msg) {
         return; 
     }
 
-    //printf("Passed hanndle disconnect checks - %c\n", msg.character);
 
     for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
         if (state->players[i].name == msg.character) {
@@ -300,7 +327,6 @@ void handle_astronaut_move(GameState *state, message msg) {
 
     moving_direction direction = get_moving_direction(p.name);
 
-    //printf("Original pos %d - %d\n", p.x, p.y);
     if (direction == HORIZONTAL) {
         if (msg.move == LEFT) {
             p.x--; 
@@ -320,7 +346,6 @@ void handle_astronaut_move(GameState *state, message msg) {
     }
 
     state->players[j] = p;
-    //printf(" final pos %d - %d %d %d\n", p.x, p.y, direction, msg.move);
 
     return;
 }
@@ -330,16 +355,18 @@ void handle_astronaut_move(GameState *state, message msg) {
  * 
  * @param state the current state of the game
  * @param msg the message received from the client
+ * 
+ * @return A boolean that is true if the game has ended -> This will mean the astronauts can no longer move or shot
  */
-void handle_astronaut_zap(GameState *state, message msg) {
+bool handle_astronaut_zap(GameState *state, message msg) {
     if (state == NULL) {
         fprintf(stderr, "Game state is NULL");
-        return;
+        return false;
     }
 
     if (msg.type != ASTRONAUT_ZAP) {
         fprintf(stderr, "Invalid message type");
-        return;
+        return false;
     }
 
     Player p;
@@ -353,12 +380,16 @@ void handle_astronaut_zap(GameState *state, message msg) {
     }
 
     if (p.stunned && time(NULL) < p.end_stun_time) {
-        return;
+        return false;
     } else {
         p.stunned = false;
     }
 
+    if (time(NULL) < p.next_shot_time) {
+        return false;
+    }
     p.next_shot_time = time(NULL) + 3;
+
 
     firing_direction direction = get_firing_direction(p.name);
 
@@ -423,6 +454,11 @@ void handle_astronaut_zap(GameState *state, message msg) {
             state->players[i].end_stun_time = time(NULL) + 10; // Stun for 5 seconds
         }
     }
+
+    if (state->aliens->size > 0) {
+        return false;
+    } 
+    return true;
 }
 
 /**
@@ -444,12 +480,14 @@ message handle_new_message(GameState* state,  message msg) {
             response.character = name;  
             break;
         case ASTRONAUT_MOVEMENT:
-            handle_astronaut_move(state, msg);
+            if(!state->game_over) 
+                handle_astronaut_move(state, msg);
             response.type = RESPONSE;
             response.character = msg.character;
             break;
         case ASTRONAUT_ZAP:
-            handle_astronaut_zap(state, msg);
+            if (!state->game_over) 
+                state->game_over = handle_astronaut_zap(state, msg);
             response.type = RESPONSE;
             response.character = msg.character;
             break;
@@ -479,6 +517,7 @@ GameState* init_game(){
     }
 
     state->player_count = 0;
+    state->game_over = false;
     // Initialize an empty grid
     memset(state->grid, ' ', sizeof(state->grid));
 
@@ -564,6 +603,9 @@ void serialize_message(const message *msg, char *buffer, size_t *buffer_size) {
     memcpy(buffer + offset, &msg->grid, sizeof(msg->grid));
     offset += sizeof(msg->grid);
 
+    memcpy(buffer + offset, &msg->game_over, sizeof(msg->game_over));
+    offset += sizeof(msg->game_over);
+
     *buffer_size = offset;
 }
 
@@ -606,20 +648,17 @@ void parent_process(){
     while(1) {
         zmq_recv(responder, &msg, sizeof(message), 0);
         clear_board(state);
-        // printf("message received - %d\n", msg.type);
 
         message response = handle_new_message(state, msg);
 
         for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
             response.scores[i] = state->players[i].score;
+            response.current_players[i] = state->players[i].name;
         }
 
-        //purintf("%c - %d\n", response.character, response.type);
         // Answer to the client
         zmq_send(responder, &response, sizeof(response), 0);
 
-        //printf("Message if of type %d \n", msg.type);
-        
         clear();
         cleanup_shot(state);
         draw_players(state);
@@ -640,6 +679,7 @@ void parent_process(){
         }
 
         memcpy(msg.grid, state->grid, sizeof(state->grid));
+        msg.game_over = state->game_over;
         serialize_message(&msg, buffer, &buffer_size);
 
         // Send the topic and message as multipart
