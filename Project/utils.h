@@ -67,7 +67,6 @@ typedef struct {
     char grid[GRID_SIZE][GRID_SIZE];
 } GameState;
 
-void draw_game_state(GameState *state);
 void init_ncurses();
 void draw_border_with_numbers();
 

@@ -17,6 +17,9 @@ void deserialize_message(const char *buffer, size_t buffer_size, message *msg) {
     memcpy(&msg->character, buffer + offset, sizeof(msg->character));
     offset += sizeof(msg->character);
 
+    memcpy(&msg->current_players, buffer + offset, sizeof(msg->current_players));
+    offset += sizeof(msg->scores);
+
     memcpy(&msg->scores, buffer + offset, sizeof(msg->scores));
     offset += sizeof(msg->scores);
 
@@ -24,7 +27,7 @@ void deserialize_message(const char *buffer, size_t buffer_size, message *msg) {
     offset += sizeof(msg->grid);
 }
 
-void draw_avatar_game(int scores[8], char grid[20][20]) {
+void draw_avatar_game(int scores[8], char grid[20][20], char current_players[8]) {
     draw_border_with_numbers();
 
     // Draw grid
@@ -50,8 +53,8 @@ void draw_avatar_game(int scores[8], char grid[20][20]) {
     mvprintw(2, GRID_SIZE + 10,  "score");
     unsigned int num_players_on = 1;
     for(unsigned int i = 0; i < MAX_PLAYERS; i++) {
-        if (state->players[i].name != ' ') {
-            mvprintw(2 + num_players_on++, GRID_SIZE + 10,  "%c-%d\n", state->players[i].name, state->players[i].score);
+        if (current_players[i] != ' ') {
+            mvprintw(2 + num_players_on++, GRID_SIZE + 10,  "%c-%d\n", current_players[i], scores[i]);
         }
     }
 
@@ -61,6 +64,7 @@ void draw_avatar_game(int scores[8], char grid[20][20]) {
 }
 
 int main(){
+    init_ncurses();
     // ZeroMQ TCP connection
     void *context = zmq_ctx_new();
     void *subscriber = zmq_socket(context, ZMQ_SUB);
@@ -70,37 +74,22 @@ int main(){
     // Subscribe to topic
     zmq_setsockopt(subscriber, ZMQ_SUBSCRIBE, "UPDATE", 6);
 
-    init_ncurses();
-
     char topic[64];
     char buffer[1024];
 
     while (1) {
         zmq_recv(subscriber, topic, sizeof(topic), 0);
-        printf("Received topic: %s\n", topic);
-
+        
         int bytes_received = zmq_recv(subscriber, buffer, sizeof(buffer), 0);
 
         if (bytes_received > 0) {
             // Deserialize and process the message
             message msg;
             deserialize_message(buffer, bytes_received, &msg);
-            /*
-            printf("Message type: %d\n", msg.type);
-            printf("Move: %d\n", msg.move);
-            printf("Character: %c\n", msg.character);
-            printf("Scores: ");
-            for (int i = 0; i < 8; i++) {
-                printf("%u ", msg.scores[i]);
-            }
-            printf("\nGrid:\n");
-            for (int i = 0; i < 20; i++) {
-                for (int j = 0; j < 20; j++) {
-                    printf("%c ", msg.grid[i][j]);
-                }
-                printf("\n");
-            }
-            */
+            
+            clear();
+            draw_avatar_game(msg.scores, msg.grid, msg.current_players);
+            refresh();
         }
 
     }

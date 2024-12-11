@@ -18,6 +18,7 @@ typedef struct message
     msg_t type; // Type of message
     move_t move; // Movement (for movement messages)
     char character; // Character of the player (for connect and disconnect messages)
+    char current_players[8]; // Current players in the game (for update messages)
     unsigned int scores[8]; // Scores of the players (for update messages)
     char grid[20][20]; // Grid of the game (for update messages)
 } message;

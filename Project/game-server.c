@@ -19,43 +19,6 @@ static inline unsigned int get_random_number(unsigned int min, unsigned int max)
     return min + (rand() % (max - min + 1));
 }
 
-void init_ncurses() {
-    initscr();
-    cbreak();
-    noecho();
-    curs_set(0); // Hide cursor
-    start_color();
-    init_pair(1, COLOR_GREEN, COLOR_BLACK); // Astronauts
-    init_pair(2, COLOR_RED, COLOR_BLACK);   // Aliens
-    init_pair(3, COLOR_YELLOW, COLOR_BLACK);// Laser beams
-    init_pair(4, COLOR_WHITE, COLOR_BLACK); // Borders and text
-}
-
-void draw_border_with_numbers() {
-    // Enable the desired color pair for the border
-    attron(COLOR_PAIR(4));
-    char border_number[] = "01234567890123456789";
-    char vertical_border[] = "+--------------------+";
-
-    // Top border with column numbers
-    mvprintw(0, 2, "%s", border_number); // Print column numbers above the top border
-    mvprintw(1, 1, "%s", vertical_border);                // Top-left corner
-
-    // Left and right borders with row numbers
-    for (unsigned int row = 0; row < GRID_SIZE; row++) {
-        mvprintw(row + 2, 0, "%c", border_number[row]); // Print row numbers to the left
-        mvprintw(row + 2, 1, "|");                     // Draw left border
-        mvprintw(row + 2, GRID_SIZE + 2, "|");         // Draw right border
-    }
-
-    // Bottom border with column numbers
-    mvprintw(GRID_SIZE + 2, 1, "%s", vertical_border); // Bottom border line
-    mvprintw(GRID_SIZE + 3, 2, "%s", border_number); // Print column numbers below the bottom border
-
-    // Turn off the color pair
-    attroff(COLOR_PAIR(4));
-}
-
 void draw_game_state(GameState *state) {
     draw_border_with_numbers();
 
@@ -637,6 +600,9 @@ void serialize_message(const message *msg, char *buffer, size_t *buffer_size) {
     memcpy(buffer + offset, &msg->character, sizeof(msg->character));
     offset += sizeof(msg->character);
 
+    memcpy(buffer + offset, &msg->current_players, sizeof(msg->current_players));
+    offset += sizeof(msg->scores);
+
     memcpy(buffer + offset, &msg->scores, sizeof(msg->scores));
     offset += sizeof(msg->scores);
 
@@ -702,6 +668,7 @@ void parent_process(){
         move_aliens_at_random(state);
         draw_game_state(state);
         refresh();
+        
 
         // Publish the updated game state
         // Create the message with the topic prepended
@@ -710,7 +677,9 @@ void parent_process(){
         msg.move = UP;
         for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
             msg.scores[i] = state->players[i].score;
+            msg.current_players[i] = state->players[i].name;
         }
+
         memcpy(msg.grid, state->grid, sizeof(state->grid));
         serialize_message(&msg, buffer, &buffer_size);
 
