@@ -13,11 +13,9 @@
 #include "list.h"
 #include "messages.h"
 #include "utils.h"
+#include "game-server.h"
 
-static inline unsigned int get_random_number(unsigned int min, unsigned int max)
-{
-    return min + (rand() % (max - min + 1));
-}
+
 
 /**
  * @brief Draws the grid of the game, the scores, the players, the aliens and the shots
@@ -150,123 +148,6 @@ void cleanup_shot(GameState * state){
     }
     return;
 }
-
-/**
- * @brief Return the default starting position of an astronaut in the grid
- * This position is well defined according to the astronaut name, meaning that each astronaut will always start from the same position. This is not the most correct way to do it, since it removed randomness in the game, but overall was the fastest way to implement it, since this way whenever a astronaut connect, we dont need to find on of the 8 allowed row's/col's from where astronauts can shoot at aliens 
- * 
- * @param astronaut_name the name of the player (should be a letter with values between A and H)
- * @return position the position in the grid array of the state where we should input the astronaut (if the astronaut name is invalid, the x and y values will be -1)
- */
-position get_start_position(char astronaut_name) {
-    position pos;
-    pos.x = -1; 
-    pos.y = -1;
-
-    // Fastest and more efficient way to implement this, since we don't need sequential for loops to find the astronaut
-    switch (astronaut_name){
-        case 'A':
-            pos.x = 0;
-            pos.y = GRID_SIZE / 2; 
-            break;
-        case 'B':
-            pos.x = GRID_SIZE / 2;
-            pos.y = 0;
-            break;
-        case 'C':
-            pos.x = GRID_SIZE - 1;
-            pos.y  = GRID_SIZE / 2;
-            break;
-        case 'D':
-            pos.x = GRID_SIZE / 2;
-            pos.y = GRID_SIZE - 1;
-            break;
-        case 'E':
-            pos.x = 1;
-            pos.y = GRID_SIZE / 2;
-            break;
-        case 'F':
-            pos.x = GRID_SIZE / 2;
-            pos.y = 1;
-            break;
-        case 'G':   
-            pos.x = GRID_SIZE - 2;
-            pos.y = GRID_SIZE / 2;
-            break;
-        case 'H':
-            pos.x = GRID_SIZE / 2;
-            pos.y = GRID_SIZE - 2;
-            break;
-        default:
-            break;
-    }
-
-    return pos;
-
-}
-
-/**
- * @brief Get the firing direction object
- * 
- * @param astronaut_name the name of the player (should be a letter with values between A and H)
- * @return firing_direction the direction in which the astronaut can shoot
- */
-firing_direction get_firing_direction(char astronaut_name){
-    firing_direction direction = ERROR;
-
-    switch (astronaut_name) {
-        case 'A':
-        case 'E':
-            direction = LEFT_TO_RIGHT;
-            break;
-        case 'B':
-        case 'F':
-            direction = UP_TO_DOWN;
-            break;
-        case 'C':
-        case 'G':
-            direction = RIGHT_TO_LEFT;
-            break;
-        case 'D':
-        case 'H':
-            direction = DOWN_TO_UP;
-            break;
-        default:
-            break;
-    }
-
-    return direction;
-}
-
-/**
- * @brief Get the moving direction object
- * 
- * @param astronaut_name the name of the player (should be a letter with values between A and H)
- * @return moving_direction the direction in which the astronaut can move
- */
-moving_direction  get_moving_direction(char astronaut_name){
-    moving_direction direction = HORIZONTAL;
-
-    switch (astronaut_name) {
-        case 'A':
-        case 'E':
-        case 'C':
-        case 'G':
-        direction = VERTICAL;
-            break;
-        case 'B':
-        case 'F':
-        case 'D':
-        case 'H':
-            direction = HORIZONTAL;
-            break;
-        default:
-            break;
-    }
-
-    return direction;
-}
-
 
 /**
  * @brief This function will handle the astronaut connect message
@@ -797,10 +678,7 @@ void child_process() {
         message response;
         zmq_send(socket, &msg, sizeof(msg), 0); // Send message to parent
         zmq_recv(socket, &response, sizeof(response), 0); // Receive message from parent
-        usleep(1000000); // Sleep for 0.1 seconds
-
-
-
+        usleep(100000); // Sleep for 0.1 seconds
     }
 
     zmq_close(socket);
@@ -809,7 +687,7 @@ void child_process() {
 }
 
 int main() {
-    // Initi
+
     pid_t pid = fork(); // Create a child process
 
     if (pid < 0) {

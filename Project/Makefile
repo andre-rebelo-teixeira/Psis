@@ -4,7 +4,7 @@ ZMQ = -lzmq
 
 all: game-server astronaut-client outer-space-display
 
-game-server: game-server.c utils.c utils.h messages.h list.h
+game-server: game-server.c utils.c utils.h messages.h list.h game-server.h
 	$(CC) game-server.c utils.c -o game-server $(NCURSES) $(ZMQ)
 	
 astronaut-client: astronaut-client.c utils.c utils.h messages.h 

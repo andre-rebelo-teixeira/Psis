@@ -4,6 +4,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+/*
+    *
+    * This file contains the implementation of an abstract doubly linked list
+    *
+    * The main reason to use a double linked list is the easier removal of node in the middle of the list, without the need of either iterating two time over the list, or using a an extra pointer variable to keep track of the previous node
+    *
+    * The list is implemented as a structure with pointer to both the tail and the head, but currently we can only add to the tail of the list, for future implementation a function to add data in the head of the list is important
+*/
+
 // Node structure for the doubly linked list
 typedef struct Node {
     void *data;
@@ -17,7 +26,11 @@ typedef struct List {
     Node *tail;
 } List;
 
-// Create a new list
+/**
+ * @brief Create a list object
+ * 
+ * @return List* 
+ */
 static inline List *create_list() {
     List *list = (List *)malloc(sizeof(List));
     if (!list) {
@@ -29,7 +42,12 @@ static inline List *create_list() {
     return list;
 }
 
-// Insert a new node at the end of the list
+/**
+ * @brief Insert a node in the tail of the list
+ * 
+ * @param list Pointer to the list
+ * @param data Pointer to the data to be stored in the list
+ */
 static inline void insert_node(List *list, void *data) {
     if (!list) return;
 
@@ -51,7 +69,13 @@ static inline void insert_node(List *list, void *data) {
     list->tail = new_node;
 }
 
-// Remove a specific node from the list
+/**
+ * @brief This function is responsible for the removal of a single node from the list
+ * 
+ * @param list Pointer to the list
+ * @param node Pointer to the node to be removed
+ * @param free_data Function pointer to a function capable of cleaning all the dynamically allocated memory in the data* of the list
+ */
 static inline void remove_node(List *list, Node *node, void (*free_data)(void *)) {
     if (!list || !node) return;
 
@@ -73,7 +97,13 @@ static inline void remove_node(List *list, Node *node, void (*free_data)(void *)
     free(node);
 }
 
-// Clean up the entire list
+/**
+ * @brief Remove all the heap allocated memory from the list
+ * @brief Be careful with this function, this will clear all the list, and make the list pointer a NULL
+ * 
+ * @param list Pointer to the list
+ * @param free_data function point to a function capable of cleaning all the dynamically allocated memory in the data* of the list
+ */
 static inline void clean_up_list(List *list, void (*free_data)(void *)) {
     if (!list) return;
 

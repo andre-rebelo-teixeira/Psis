@@ -3,7 +3,8 @@
 #include "utils.h"
 
 /**
- * @brief Draws the border of the game grid with numbers
+ * @brief Draws the border of the game
+ * This includes the square border around the game board, as well as the column and row identification number for easier gameplay
  */
 void draw_border_with_numbers() {
     // Enable the desired color pair for the border
