@@ -2,6 +2,9 @@
 
 #include "utils.h"
 
+/**
+ * @brief Draws the border of the game grid with numbers
+ */
 void draw_border_with_numbers() {
     // Enable the desired color pair for the border
     attron(COLOR_PAIR(4));
@@ -27,6 +30,9 @@ void draw_border_with_numbers() {
     attroff(COLOR_PAIR(4));
 }
 
+/**
+ * @brief Initializes the ncurses library
+ */
 void init_ncurses() {
     initscr();
     cbreak();

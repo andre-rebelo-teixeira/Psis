@@ -19,6 +19,11 @@ static inline unsigned int get_random_number(unsigned int min, unsigned int max)
     return min + (rand() % (max - min + 1));
 }
 
+/**
+ * @brief Draws the grid of the game, the scores, the players, the aliens and the shots
+ *
+ * @param state the current state of the game
+ */
 void draw_game_state(GameState *state) {
     draw_border_with_numbers();
 
@@ -55,6 +60,11 @@ void draw_game_state(GameState *state) {
     attron(COLOR_PAIR(4));
 }
 
+/**
+ * @brief Places players on the grid based on their positions
+ *
+ * @param state the current state of the game
+ */
 void draw_players(GameState *state){
     for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
         if (state->players[i].name != ' ') {
@@ -65,6 +75,11 @@ void draw_players(GameState *state){
     return;
 }
 
+/**
+ * @brief Places the shots on the grid based on the firing direction
+ *
+ * @param state the current state of the game
+ */
 void draw_shots(GameState *state) {
     Node * node = state->shots->head;
 
@@ -77,6 +92,11 @@ void draw_shots(GameState *state) {
     return;
 }
 
+/**
+ * @brief Moves aliens randomly in the grid
+ *
+ * @param state the current state of the game
+ */
 void move_aliens_at_random(GameState *state) {
     if (state == NULL) {
         fprintf(stderr, "Game state is NULL");
@@ -108,6 +128,11 @@ void move_aliens_at_random(GameState *state) {
     return;
 }
 
+/**
+ * @brief  Cleans up expired shots from the game state
+ *
+ * @param state the current state of the game
+ */
 void cleanup_shot(GameState * state){
     Node *node = state->shots->head;
     void (*free_ptr)(void*) = free;
@@ -130,8 +155,8 @@ void cleanup_shot(GameState * state){
  * @brief Return the default starting position of an astronaut in the grid
  * This position is well defined according to the astronaut name, meaning that each astronaut will always start from the same position. This is not the most correct way to do it, since it removed randomness in the game, but overall was the fastest way to implement it, since this way whenever a astronaut connect, we dont need to find on of the 8 allowed row's/col's from where astronauts can shoot at aliens 
  * 
- * @param astronaut_name  should be a letter with values between A and H
- * @return position the position in the grid array of the state where we should input the astronaut. If the astronaut name is invalid, the x and y values will be -1
+ * @param astronaut_name the name of the player (should be a letter with values between A and H)
+ * @return position the position in the grid array of the state where we should input the astronaut (if the astronaut name is invalid, the x and y values will be -1)
  */
 position get_start_position(char astronaut_name) {
     position pos;
@@ -183,8 +208,8 @@ position get_start_position(char astronaut_name) {
 /**
  * @brief Get the firing direction object
  * 
- * @param astronaut_name 
- * @return firing_direction 
+ * @param astronaut_name the name of the player (should be a letter with values between A and H)
+ * @return firing_direction the direction in which the astronaut can shoot
  */
 firing_direction get_firing_direction(char astronaut_name){
     firing_direction direction = ERROR;
@@ -214,10 +239,10 @@ firing_direction get_firing_direction(char astronaut_name){
 }
 
 /**
- * @brief Get the firing direction object
+ * @brief Get the moving direction object
  * 
- * @param astronaut_name 
- * @return firing_direction 
+ * @param astronaut_name the name of the player (should be a letter with values between A and H)
+ * @return moving_direction the direction in which the astronaut can move
  */
 moving_direction  get_moving_direction(char astronaut_name){
     moving_direction direction = HORIZONTAL;
@@ -246,9 +271,9 @@ moving_direction  get_moving_direction(char astronaut_name){
 /**
  * @brief This function will handle the astronaut connect message
  * 
- * @param state 
- * @param msg 
- * @return GameState* 
+ * @param state the current state of the game
+ * @param msg the message received from the client
+ * @return char the name of the astronaut that was assigned to the player 
  */
 char handle_astronaut_connect(GameState* state, message msg) {
     if (state == NULL) {
@@ -296,6 +321,12 @@ char handle_astronaut_connect(GameState* state, message msg) {
     return name;
 }
 
+/**
+ * @brief This function will handle the astronaut disconnect message
+ * 
+ * @param state the current state of the game
+ * @param msg the message received from the client
+ */
 void  handle_astronaut_disconnect(GameState *state, message msg) {
     if (state == NULL) {
         fprintf(stderr, "Game state is NULL");
@@ -324,6 +355,13 @@ void  handle_astronaut_disconnect(GameState *state, message msg) {
     return;
 }
 
+/**
+ * @brief This function will update the position of the shot based on the direction it was fired
+ * 
+ * @param shot the current position of the shot
+ * @param shot_direction the direction in which the shot was fired
+ * @return position the updated position of the shot
+ */
 position update_shot_pos(position shot, firing_direction shot_direction) {
     switch (shot_direction) {
         case LEFT_TO_RIGHT:
@@ -344,6 +382,12 @@ position update_shot_pos(position shot, firing_direction shot_direction) {
     return shot;
 }
 
+/**
+ * @brief This function will handle the astronaut move message
+ * 
+ * @param state the current state of the game
+ * @param msg the message received from the client
+ */
 void handle_astronaut_move(GameState *state, message msg) {
     if (state == NULL) {
         fprintf(stderr, "Game state is NULL");
@@ -400,6 +444,12 @@ void handle_astronaut_move(GameState *state, message msg) {
     return;
 }
 
+/**
+ * @brief This function will handle the astronaut zap message
+ * 
+ * @param state the current state of the game
+ * @param msg the message received from the client
+ */
 void handle_astronaut_zap(GameState *state, message msg) {
     if (state == NULL) {
         fprintf(stderr, "Game state is NULL");
@@ -494,6 +544,13 @@ void handle_astronaut_zap(GameState *state, message msg) {
     }
 }
 
+/**
+ * @brief This function will handle the new message received from the client
+ * 
+ * @param state the current state of the game
+ * @param msg the message received from the client
+ * @return message the response message to be sent back to the client
+ */
 message handle_new_message(GameState* state,  message msg) {
     message response; 
     response.character = msg.character;
@@ -527,6 +584,11 @@ message handle_new_message(GameState* state,  message msg) {
     return response;
 }
 
+/**
+ * @brief Initialize the game state
+ * 
+ * @return GameState* the created game state
+ */
 GameState* init_game(){ 
     GameState* state = (GameState*)calloc(1, sizeof(GameState));
 
@@ -580,6 +642,11 @@ GameState* init_game(){
     return state;
 }
 
+/**
+ * @brief This function will clear the board associated to the game state
+ * 
+ * @param state the current state of the game
+ */
 void clear_board(GameState* state){
     for (unsigned int i = 0; i < GRID_SIZE; i++) {
         for (unsigned int j = 0; j < GRID_SIZE; j++) {
@@ -588,6 +655,13 @@ void clear_board(GameState* state){
     }
 }
 
+/**
+ * @brief Serialize the update the message for it to be sent in a buffer to outer-space-display via the publisher
+ * 
+ * @param msg the message to be serialized
+ * @param buffer the buffer where the message will be serialized
+ * @param buffer_size the size of the buffer
+ */
 void serialize_message(const message *msg, char *buffer, size_t *buffer_size) {
     size_t offset = 0;
 
@@ -612,6 +686,10 @@ void serialize_message(const message *msg, char *buffer, size_t *buffer_size) {
     *buffer_size = offset;
 }
 
+/**
+ * @brief This function acts as the parent process of the game server. 
+ * It is used to handle the game logic and the communication with both the child process, the client and the outer-space-display
+ */
 void parent_process(){
     // Initialize NCurses
     init_ncurses();
@@ -695,6 +773,10 @@ void parent_process(){
     exit(0);
 }
 
+/**
+ * @brief This function acts as the child process of the game server. 
+ * It is used to communicate with the parent process and prevent it from blocking the game logic
+ */
 void child_process() {
     void *context = zmq_ctx_new();
     void *socket =  zmq_socket(context, ZMQ_REQ);

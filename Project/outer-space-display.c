@@ -5,6 +5,13 @@
 #include "messages.h"
 #include "utils.h"
 
+/**
+ * @brief Deserialize the update the message for it to be obtained from the buffer
+ * 
+ * @param buffer the buffer where the message will be deserialized
+ * @param buffer_size the size of the buffer
+ * @param msg the message to be deserialized
+ */
 void deserialize_message(const char *buffer, size_t buffer_size, message *msg) {
     size_t offset = 0;
 
@@ -27,6 +34,13 @@ void deserialize_message(const char *buffer, size_t buffer_size, message *msg) {
     offset += sizeof(msg->grid);
 }
 
+/**
+ * @brief Draw the grid of the game, the scores, the players, the aliens and the shots in the outer space display
+ * 
+ * @param scores the scores of the players
+ * @param grid the grid of the game
+ * @param current_players the current players in the game
+ */
 void draw_avatar_game(int scores[8], char grid[20][20], char current_players[8]) {
     draw_border_with_numbers();
 
