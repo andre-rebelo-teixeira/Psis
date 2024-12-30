@@ -14,29 +14,32 @@
 #include "utils.h"
 
 // Function declarations
+void random_move_aliens(GameState *state, time_t current_time);
+
+void populate_grid_from_gamestate(GameState *state);
+
+void update_game_state(GameState *state, time_t current_time);
 
 // Drawing functions
 void draw_shots(GameState *state);
 void clear_board(GameState *state);
-void draw_players(GameState *state);
 void draw_game_state(GameState *state);
 
 // Game logic functions
 GameState* init_game();
-void cleanup_shot(GameState *state);
-void move_aliens_at_random(GameState *state);
 bool handle_astronaut_zap(GameState *state, message msg);
 message handle_new_message(GameState *state, message msg);
 void handle_astronaut_move(GameState *state, message msg);
 char handle_astronaut_connect(GameState *state, message msg);
 void handle_astronaut_disconnect(GameState *state, message msg);
-position update_shot_pos(position shot, firing_direction shot_direction);
+
 void serialize_message(const message *msg, char *buffer, size_t *buffer_size);
 void serialize_score_message(message* msg, uint8_t** buffer, size_t* size);
 
 // Process separation functions
-void child_process();
-void parent_process();
+
+void *game_handler(void *arg);
+void *alien_handler(void *arg);
 
 // Function definition
 // 
@@ -164,5 +167,30 @@ static inline moving_direction get_moving_direction(char astronaut_name){
     return direction;
 }
 
-
+/**
+ * @brief This function will update the position of the shot based on the direction it was fired
+ * 
+ * @param shot the current position of the shot
+ * @param shot_direction the direction in which the shot was fired
+ * @return position the updated position of the shot
+ */
+static inline position update_shot_pos(position shot, firing_direction shot_direction) {
+    switch (shot_direction) {
+        case LEFT_TO_RIGHT:
+            shot.x += 1;
+            break;
+        case RIGHT_TO_LEFT:
+            shot.x -= 1;
+            break;
+        case UP_TO_DOWN:
+            shot.y += 1;
+            break;
+        case DOWN_TO_UP:
+            shot.y -= 1;
+            break;
+        default:
+            break;
+    }
+    return shot;
+}
 #endif // GAME_SERVER_H

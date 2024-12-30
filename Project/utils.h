@@ -13,7 +13,7 @@
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
 #define MAX_PLAYERS 8
-#define START_ALIENS_COUNT 85 
+#define START_ALIENS_COUNT 5 
 #define GRID_SIZE 20
 #define MAX_MSG_LEN 256
 
@@ -61,11 +61,12 @@ typedef struct {
 typedef struct {
     Player players[MAX_PLAYERS];
     bool players_name_used[MAX_PLAYERS];
-    unsigned int player_count;
+    bool game_over;
     List *aliens; 
     List *shots;
-    bool game_over;
     char grid[GRID_SIZE][GRID_SIZE];
+    unsigned int player_count;
+    time_t last_alien_killed;
 } GameState;
 
 void init_ncurses();

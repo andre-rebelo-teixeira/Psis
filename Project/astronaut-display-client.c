@@ -288,8 +288,6 @@ int main() {
     // Ncurses setup
     init_ncurses();
     
-
-    //nodelay(stdscr, TRUE);
     keypad(stdscr, TRUE);
 
     if (pthread_create(&display_thread, NULL, display_client, &display_args) != 0) {

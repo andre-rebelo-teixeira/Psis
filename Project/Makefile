@@ -23,3 +23,4 @@ astronaut-display-client: astronaut-display-client.c astronaut-display-client.h 
 
 clean:
 	rm -f game-server astronaut-client outer-space-display astronaut-display-client score_message.pb-c.c score_message.pb-c.h score_message_pb2.py
+

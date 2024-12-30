@@ -6,6 +6,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+#include <pthread.h>
+
 #include <sys/types.h>
 
 #include<unistd.h>
@@ -17,15 +19,124 @@
 #include "game-server.h"
 
 
+pthread_mutex_t game_state_mutex;
+typedef struct {
+    GameState *state; 
+} thread_args;
+
+
+
+
+/** 
+ * @brief This function populates the grid of the state according to the current position of alliens, shots and players, in this order, meaning that if a player is in the same position as an shot, the player will be drawn on top of the alien 
+ *
+ * @param state the current state of the game
+ *
+ * @return void
+ */
+void populate_grid_from_gamestate(GameState *state){
+    // Clean the previous grid to avoid having elements in the previous position
+    for (unsigned int i = 0; i < GRID_SIZE; i++) {
+        for (unsigned int j = 0; j < GRID_SIZE; j++) {
+            state->grid[i][j] = ' ';
+        }
+    }
+
+    // Draw all the aliens in the correct position in the grid
+    Node *current = state->shots->head;
+    while(current != NULL) {
+        Shot *shot = (Shot *)current->data;
+        state->grid[shot->pos.y][shot->pos.x] = shot->shot_symbol;
+        current = current->next;
+    }
+
+    // Draw all the aliens in the correct position in the grid
+    current = state->aliens->head;
+    while(current != NULL) {
+        Alien *alien = (Alien *)current->data;
+        state->grid[alien->y][alien->x] = '*';
+        current = current->next;
+    }
+
+    // Draw all players in the correct position in the grid
+    for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
+        if (state->players[i].name != ' ') {
+            state->grid[state->players[i].y][state->players[i].x] = state->players[i].name;
+        }
+    }
+}
+
+/**
+ * @brief  This function will update the game state, removing all the shots that have expired 
+ *
+ * @param state the current state of the game
+ * @param current_time the current time of the game
+ *
+ * @return void
+ */
+void update_game_state(GameState *state, time_t current_time) {
+    // Remove expired shots
+    Node * current = state->shots->head;
+    while (current != NULL) {
+        Shot *shot = (Shot *)current->data;
+        if (current_time > shot->end_time) {
+            Node *next = current->next;
+            remove_node(state->shots, current, free);
+            current = next;
+        } else {
+            current = current->next;
+        }
+    }
+
+    // Move the aliens
+    current = state->aliens->head;
+
+    while(current != NULL) {
+        Alien *alien = (Alien *)current->data;
+        if (current_time > alien->next_move) {
+            int delta_x = get_random_number(-1, 1);
+            int delta_y = get_random_number(-1, 1);
+
+            alien->x = min(max(alien->x + delta_x, 2), GRID_SIZE - 2 - 1);
+            alien->y = min(max(alien->y + delta_y, 2), GRID_SIZE - 2 - 1);
+            alien->next_move = current_time+ 1;
+        }
+
+        state->grid[alien->y][alien->x] = '*';
+        current = current->next;
+    }
+
+    // Repopulate Aliens if needed
+    // Only repopulate if the less kill has been made more than 10 seconds ago
+    if(state->last_alien_killed + 10 < current_time){
+        unsigned int count = state->aliens->size;
+
+        // Here we are limiting the number of aliens to 256 even tho it is not specified in the requirements, but not only do we avoid memory issues, but we also would fall in the problem of having more aliens than space in the board for them 
+        for (unsigned int i = 0; i < min(count *0.1, 16*16); i++) {
+            Alien *alien = (Alien *) calloc(1, sizeof(Alien));
+            if (alien == NULL) {
+                perror("Failed to allocate memory for alien");
+                exit(EXIT_FAILURE);
+            }
+            alien->x = get_random_number(2, GRID_SIZE - 2 - 1);
+            alien->y = get_random_number(2, GRID_SIZE - 2 - 1);
+            alien->next_move = current_time + 1;
+            insert_node(state->aliens, alien);
+        }
+    }
+
+    return;
+}
 
 /**
  * @brief Draws the grid of the game, the scores, the players, the aliens and the shots
  *
  * @param state the current state of the game
+ *
+ * @return void
  */
 void draw_game_state(GameState *state) {
     draw_border_with_numbers();
-
 
     // Draw grid
     if (!state->game_over) {
@@ -91,101 +202,11 @@ void draw_game_state(GameState *state) {
 }
 
 /**
- * @brief Places players on the grid based on their positions
- *
- * @param state the current state of the game
- */
-void draw_players(GameState *state){
-    for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
-        if (state->players[i].name != ' ') {
-            state->grid[state->players[i].y][state->players[i].x] = state->players[i].name;
-        }
-    }
-
-    return;
-}
-
-/**
- * @brief Places the shots on the grid based on the firing direction
- *
- * @param state the current state of the game
- */
-void draw_shots(GameState *state) {
-    Node * node = state->shots->head;
-
-    while(node !=  NULL){
-        Shot * shot = (Shot *) node->data;
-        state->grid[shot->pos.y][shot->pos.x] = shot->shot_symbol;
-        node = node->next;
-    }
-
-    return;
-}
-
-/**
- * @brief Moves aliens randomly in the grid
- *
- * @param state the current state of the game
- */
-void move_aliens_at_random(GameState *state) {
-    if (state == NULL) {
-        fprintf(stderr, "Game state is NULL");
-        return;
-    }
-
-    if (state->aliens == NULL) {
-        fprintf(stderr, "Aliens list is NULL");
-        return;
-    }
-
-    Node *current = state->aliens->head;
-
-    while(current != NULL) {
-        Alien *alien = (Alien *)current->data;
-        if (time(NULL) > alien->next_move) {
-            int delta_x = get_random_number(-1, 1);
-            int delta_y = get_random_number(-1, 1);
-
-            alien->x = min(max(alien->x + delta_x, 2), GRID_SIZE - 2 - 1);
-            alien->y = min(max(alien->y + delta_y, 2), GRID_SIZE - 2 - 1);
-            alien->next_move = time(NULL) + 1;
-        }
-
-        state->grid[alien->y][alien->x] = '*';
-        current = current->next;
-    }
-
-    return;
-}
-
-/**
- * @brief  Cleans up expired shots from the game state
- *
- * @param state the current state of the game
- */
-void cleanup_shot(GameState * state){
-    Node *node = state->shots->head;
-    void (*free_ptr)(void*) = free;
-    
-    while(node != NULL) {
-        Shot* shot = (Shot *)node->data;
-
-        if (time(NULL) > shot->end_time) {
-            Node * next_node = node->next;
-            remove_node(state->shots, node, free_ptr);
-            node = next_node;
-        } else {
-            node = node->next;
-        }
-    }
-    return;
-}
-
-/**
  * @brief This function will handle the astronaut connect message
  * 
  * @param state the current state of the game
  * @param msg the message received from the client
+ *
  * @return char the name of the astronaut that was assigned to the player 
  */
 char handle_astronaut_connect(GameState* state, message msg) {
@@ -236,6 +257,8 @@ char handle_astronaut_connect(GameState* state, message msg) {
  * 
  * @param state the current state of the game
  * @param msg the message received from the client
+ *
+ * @return void
  */
 void  handle_astronaut_disconnect(GameState *state, message msg) {
     if (state == NULL) {
@@ -264,38 +287,14 @@ void  handle_astronaut_disconnect(GameState *state, message msg) {
     return;
 }
 
-/**
- * @brief This function will update the position of the shot based on the direction it was fired
- * 
- * @param shot the current position of the shot
- * @param shot_direction the direction in which the shot was fired
- * @return position the updated position of the shot
- */
-position update_shot_pos(position shot, firing_direction shot_direction) {
-    switch (shot_direction) {
-        case LEFT_TO_RIGHT:
-            shot.x += 1;
-            break;
-        case RIGHT_TO_LEFT:
-            shot.x -= 1;
-            break;
-        case UP_TO_DOWN:
-            shot.y += 1;
-            break;
-        case DOWN_TO_UP:
-            shot.y -= 1;
-            break;
-        default:
-            break;
-    }
-    return shot;
-}
 
 /**
  * @brief This function will handle the astronaut move message
  * 
  * @param state the current state of the game
  * @param msg the message received from the client
+ *
+ * @return void   
  */
 void handle_astronaut_move(GameState *state, message msg) {
     if (state == NULL) {
@@ -467,6 +466,7 @@ bool handle_astronaut_zap(GameState *state, message msg) {
  * 
  * @param state the current state of the game
  * @param msg the message received from the client
+ *
  * @return message the response message to be sent back to the client
  */
 message handle_new_message(GameState* state,  message msg) {
@@ -506,7 +506,7 @@ message handle_new_message(GameState* state,  message msg) {
 
 /**
  * @brief Initialize the game state
- * 
+ *
  * @return GameState* the created game state
  */
 GameState* init_game(){ 
@@ -560,20 +560,9 @@ GameState* init_game(){
         insert_node(state->aliens, alien);
     }
 
-    return state;
-}
+    state->last_alien_killed = time(NULL);
 
-/**
- * @brief This function will clear the board associated to the game state
- * 
- * @param state the current state of the game
- */
-void clear_board(GameState* state){
-    for (unsigned int i = 0; i < GRID_SIZE; i++) {
-        for (unsigned int j = 0; j < GRID_SIZE; j++) {
-            state->grid[i][j] = ' ';
-        }
-    }
+    return state;
 }
 
 /**
@@ -582,6 +571,8 @@ void clear_board(GameState* state){
  * @param msg the message to be serialized
  * @param buffer the buffer where the message will be serialized
  * @param buffer_size the size of the buffer
+ *
+ * @return void
  */
 void serialize_message(const message *msg, char *buffer, size_t *buffer_size) {
     size_t offset = 0;
@@ -611,6 +602,7 @@ void serialize_message(const message *msg, char *buffer, size_t *buffer_size) {
 }
 
 /**
+<<<<<<< HEAD
  * @brief Serialize a score message into a protocol buffer format
  *
  * @param msg Pointer to the message structure containing player and scores data
@@ -643,62 +635,78 @@ void serialize_score_message(message* msg, uint8_t** buffer, size_t* size) {
 /**
  * @brief This function acts as the parent process of the game server. 
  * It is used to handle the game logic and the communication with both the child process, the client and the outer-space-display
+=======
+    * @brief This function will handle the logic behind the game server, making sure all the game rules are followed
+    *
+    * @param arg the arguments passed to the function
+    *
+    * @return void* the return value of the function
+>>>>>>> 6679ed5 (feat(Part2): until 2.8 done i think)
  */
-void parent_process(){
-    // Initialize NCurses
-    init_ncurses();
-
-    // Initialize Game state
-    GameState * state = init_game() ;
-
-    //// Cleanup
-    //endwin();
-    //return 0;
-    void *context = zmq_ctx_new();
-    void *responder = zmq_socket(context, ZMQ_REP); // REP socket for responding
-    if (zmq_bind(responder, ADDRESS) != 0) {
-        perror("Parent responder zmq_bind failed");
-        zmq_close(responder);
-        zmq_ctx_destroy(context);
-        exit(1);
-    }
-
-    void *publisher = zmq_socket(context, ZMQ_PUB); // PUB socket for publishing
-    if (zmq_bind(publisher, PUBSUB_ADDRESS) != 0) {
-        perror("Parent publisher zmq_bind failed");
-        zmq_close(publisher);
-        zmq_close(responder);
-        zmq_ctx_destroy(context);
-        exit(1);
-    }
+void *game_handler(void *arg){
+    thread_args *args = (thread_args *)arg;
+    GameState *state = args->state;
 
     message msg;
     char buffer[1024];
     size_t buffer_size;
     uint8_t* buffer_pointer;
 
-    while(1) {
-        zmq_recv(responder, &msg, sizeof(message), 0);
-        clear_board(state);
+    // Open ZMQ context and socket
+    void *context = zmq_ctx_new();
+    void *socket = zmq_socket(context, ZMQ_REP); 
 
+    // Bind the socket to the address
+    if (zmq_bind(socket, ADDRESS) != 0) {
+        perror("Parent responder zmq_bind failed");
+        zmq_close(socket);
+        zmq_ctx_destroy(context);
+        exit(1);
+    }
+
+    // Open PUB SUB connection
+    void *pub_sub_socket = zmq_socket(context, ZMQ_PUB);
+    // Bind the socket to the address
+    if (zmq_bind(pub_sub_socket, PUBSUB_ADDRESS) != 0) {
+        perror("Parent publisher zmq_bind failed");
+        zmq_close(socket);
+        zmq_close(pub_sub_socket);
+        zmq_ctx_destroy(context);
+        exit(1);
+    }
+
+    while(true) {
+        // Receive messages from an existing client or a new one
+        zmq_recv(socket, &msg, sizeof(message), 0);
+
+        // process and create the response message to the client
         message response = handle_new_message(state, msg);
 
+        // Response information
         for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
             response.scores[i] = state->players[i].score;
             response.current_players[i] = state->players[i].name;
         }
 
         // Answer to the client
-        zmq_send(responder, &response, sizeof(response), 0);
+        zmq_send(socket, &response, sizeof(response), 0);
 
+        // ncurses function to clear the full screen allowing for a full repaint of the game
         clear();
-        cleanup_shot(state);
-        draw_players(state);
-        draw_shots(state);
-        move_aliens_at_random(state);
+
+        // Lock the mutex to ensure no race conflicts in the game state  
+        pthread_mutex_lock(&game_state_mutex);
+
+        // Update the game state
+        update_game_state(state, time(NULL));
+        populate_grid_from_gamestate(state);
         draw_game_state(state);
+
+        // Unlock the mutex
+        pthread_mutex_unlock(&game_state_mutex);
+
+        // Refresh the screen with the new repainted game
         refresh();
-        
 
         // Publish the updated game state
         // Create the message with the topic prepended
@@ -715,6 +723,7 @@ void parent_process(){
         serialize_message(&msg, buffer, &buffer_size);
 
         // Send the topic and message as multipart
+<<<<<<< HEAD
         zmq_send(publisher, "UPDATE", 6, ZMQ_SNDMORE); // Send topic
         zmq_send(publisher, buffer, buffer_size, 0);   // Send serialized message
 
@@ -724,62 +733,61 @@ void parent_process(){
         zmq_send(publisher, buffer_pointer, buffer_size, 0);     // Send score message
 
         free(buffer_pointer);
+=======
+        zmq_send(pub_sub_socket, "UPDATE", 6, ZMQ_SNDMORE); // Send topic
+        zmq_send(pub_sub_socket, buffer, buffer_size, 0);   // Send serialized message
+>>>>>>> 6679ed5 (feat(Part2): until 2.8 done i think)
     }
 
     // Cleanup
-    zmq_close(publisher);
+    zmq_close(socket);
+    zmq_close(pub_sub_socket);
     zmq_ctx_destroy(context);
 
-    exit(0);
+    pthread_exit(NULL);
 }
 
-/**
- * @brief This function acts as the child process of the game server. 
- * It is used to communicate with the parent process and prevent it from blocking the game logic
- */
-void child_process() {
-    void *context = zmq_ctx_new();
-    void *socket =  zmq_socket(context, ZMQ_REQ);
 
-    if (zmq_connect(socket, ADDRESS) != 0) {
-        perror("Child zmq_connect failed");
-        zmq_close(socket);
-        zmq_ctx_destroy(context);
-        exit(1);
+void *alien_handler(void *arg) {
+    thread_args *args = (thread_args *)arg;
+    GameState *state = args->state;
+
+    while(1) {
+        pthread_mutex_lock(&game_state_mutex);
+        pthread_mutex_unlock(&game_state_mutex);
+        usleep(50000); // Sleep for 0.5 seconds
     }
 
-    message msg;
-    msg.type = TICK;
-    msg.move = UP;
-    msg.character = ' ';
-
-    while (1) {
-        message response;
-        zmq_send(socket, &msg, sizeof(msg), 0); // Send message to parent
-        zmq_recv(socket, &response, sizeof(response), 0); // Receive message from parent
-        usleep(100000); // Sleep for 0.1 seconds
-    }
-
-    zmq_close(socket);
-    zmq_ctx_destroy(context);
-    exit(0);
+    pthread_exit(NULL);
 }
 
 int main() {
+    GameState *state = init_game();     
 
-    pid_t pid = fork(); // Create a child process
+    thread_args game_handler_args;
+    game_handler_args.state = state;
 
-    if (pid < 0) {
-        perror("Fork failed");
-        exit(1);
-    } else if (pid == 0) {
-        // Child process
-        usleep(100000); // Small delay to ensure the parent sets up first
-        child_process();
-    } else {
-        // Parent process
-        parent_process();
+    pthread_t game_handler_thread, alien_movement_thread;
+
+    if (pthread_mutex_init(&game_state_mutex, NULL) != 0) {
+        perror("Mutex initialization failed");
+        return EXIT_FAILURE;
     }
+
+    init_ncurses();
+
+    if (pthread_create(&game_handler_thread, NULL, (void *)game_handler, &game_handler_args) != 0) {
+        perror("Failed to create game handler thread");
+        return 1;
+    }
+
+    if (pthread_create(&alien_movement_thread, NULL, (void *)alien_handler, &game_handler_args) != 0) {
+        perror("Failed to create alien movement thread");
+        return 1;
+    }
+
+    pthread_join(game_handler_thread, NULL);
+    pthread_join(alien_movement_thread, NULL);
 
     return 0;
 }
