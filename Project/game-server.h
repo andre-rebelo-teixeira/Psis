@@ -10,6 +10,7 @@
 #include <stdbool.h>
 #include "list.h"
 #include "messages.h"
+#include "score_message.pb-c.h"
 #include "utils.h"
 
 // Function declarations
@@ -31,6 +32,7 @@ char handle_astronaut_connect(GameState *state, message msg);
 void handle_astronaut_disconnect(GameState *state, message msg);
 position update_shot_pos(position shot, firing_direction shot_direction);
 void serialize_message(const message *msg, char *buffer, size_t *buffer_size);
+void serialize_score_message(message* msg, uint8_t** buffer, size_t* size);
 
 // Process separation functions
 void child_process();

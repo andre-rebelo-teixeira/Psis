@@ -12,6 +12,7 @@
 
 #include "list.h"
 #include "messages.h"
+#include "score_message.pb-c.h"
 #include "utils.h"
 #include "game-server.h"
 
@@ -610,6 +611,36 @@ void serialize_message(const message *msg, char *buffer, size_t *buffer_size) {
 }
 
 /**
+ * @brief Serialize a score message into a protocol buffer format
+ *
+ * @param msg Pointer to the message structure containing player and scores data
+ * @param buffer Pointer to a uint8_t pointer that will be allocated and filled with the serialized data
+ * @param size Pointer to a size_t variable that holds the size of the serialized data
+ *
+ * @note The caller is responsible for freeing the allocated buffer after use
+ */
+void serialize_score_message(message* msg, uint8_t** buffer, size_t* size) {
+    ScoreUpdate score_update = SCORE_UPDATE__INIT;
+    
+    // Create a null-terminated string from current_players
+    char current_players_str[9];  // 8 characters + null terminator
+    memcpy(current_players_str, msg->current_players, 8);
+    current_players_str[8] = '\0';
+
+    // Set the fields
+    score_update.current_players = current_players_str;
+    score_update.n_scores = 8;
+    score_update.scores = msg->scores;
+    
+    // Get size and allocate buffer
+    *size = score_update__get_packed_size(&score_update);
+    *buffer = malloc(*size);
+    
+    // Pack the message
+    score_update__pack(&score_update, *buffer);
+}
+
+/**
  * @brief This function acts as the parent process of the game server. 
  * It is used to handle the game logic and the communication with both the child process, the client and the outer-space-display
  */
@@ -644,6 +675,7 @@ void parent_process(){
     message msg;
     char buffer[1024];
     size_t buffer_size;
+    uint8_t* buffer_pointer;
 
     while(1) {
         zmq_recv(responder, &msg, sizeof(message), 0);
@@ -685,6 +717,13 @@ void parent_process(){
         // Send the topic and message as multipart
         zmq_send(publisher, "UPDATE", 6, ZMQ_SNDMORE); // Send topic
         zmq_send(publisher, buffer, buffer_size, 0);   // Send serialized message
+
+        serialize_score_message(&msg, &buffer_pointer, &buffer_size);
+
+        zmq_send(publisher, "SCORE_UPDATE", 12, ZMQ_SNDMORE); // Send topic
+        zmq_send(publisher, buffer_pointer, buffer_size, 0);     // Send score message
+
+        free(buffer_pointer);
     }
 
     // Cleanup
