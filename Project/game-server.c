@@ -61,7 +61,11 @@ void populate_grid_from_gamestate(GameState *state){
     // Draw all players in the correct position in the grid
     for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
         if (state->players[i].name != ' ') {
-            state->grid[state->players[i].y][state->players[i].x] = state->players[i].name;
+            if (state->players[i].stunned) {
+                state->grid[state->players[i].y][state->players[i].x] = 'a' +   state->players[i].name - 'A';
+            } else {
+                state->grid[state->players[i].y][state->players[i].x] = state->players[i].name;
+            }
         }
     }
 }
@@ -110,6 +114,7 @@ void update_game_state(GameState *state, time_t current_time) {
     // Only repopulate if the less kill has been made more than 10 seconds ago
     if(state->last_alien_killed + 10 < current_time){
         unsigned int count = state->aliens->size;
+        state->last_alien_killed = current_time;
 
         // Here we are limiting the number of aliens to 256 even tho it is not specified in the requirements, but not only do we avoid memory issues, but we also would fall in the problem of having more aliens than space in the board for them 
         for (unsigned int i = 0; i < min(count *0.1, 16*16); i++) {
@@ -122,6 +127,12 @@ void update_game_state(GameState *state, time_t current_time) {
             alien->y = get_random_number(2, GRID_SIZE - 2 - 1);
             alien->next_move = current_time + 1;
             insert_node(state->aliens, alien);
+        }
+    }
+
+    for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
+        if (state->players[i].stunned && current_time > state->players[i].end_stun_time) {
+            state->players[i].stunned = false;
         }
     }
 
@@ -318,13 +329,6 @@ void handle_astronaut_move(GameState *state, message msg) {
         }
     }
 
-
-    if (p.stunned && time(NULL) < p.end_stun_time) {
-        return;
-    } else {
-        p.stunned = false;
-    }
-
     moving_direction direction = get_moving_direction(p.name);
 
     if (direction == HORIZONTAL) {
@@ -432,6 +436,7 @@ bool handle_astronaut_zap(GameState *state, message msg) {
             Alien *alien = (Alien *)current->data;
 
             if (alien->x == shot.x && alien->y == shot.y) {
+                state->last_alien_killed = time(NULL);
                 // Remove the alien from the list
                 Node * next = current->next;
                 remove_node(state->aliens, current, free_ptr);
@@ -680,7 +685,9 @@ void *game_handler(void *arg){
         zmq_recv(socket, &msg, sizeof(message), 0);
 
         // process and create the response message to the client
+        pthread_mutex_lock(&game_state_mutex);
         message response = handle_new_message(state, msg);
+        pthread_mutex_unlock(&game_state_mutex);
 
         // Response information
         for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
@@ -761,13 +768,45 @@ void *alien_handler(void *arg) {
     pthread_exit(NULL);
 }
 
+void * game_update_timer(void *arg) {
+    thread_args *args = (thread_args *)arg;
+
+    void *context = zmq_ctx_new();
+    void *socket =  zmq_socket(context, ZMQ_REQ);
+
+    if (zmq_connect(socket, ADDRESS) != 0) {
+        perror("Child zmq_connect failed");
+        zmq_close(socket);
+        zmq_ctx_destroy(context);
+        exit(1);
+    }
+
+    message msg;
+    msg.type = TICK;
+    msg.move = UP;
+    msg.character = ' ';
+
+    while (1) {
+        message response;
+        zmq_send(socket, &msg, sizeof(msg), 0); // Send message to parent
+        zmq_recv(socket, &response, sizeof(response), 0); // Receive message from parent
+        usleep(100000); // Sleep for 0.1 seconds
+    }
+
+    zmq_close(socket);
+    zmq_ctx_destroy(context);
+
+    pthread_exit(NULL);
+
+}
+
 int main() {
     GameState *state = init_game();     
 
     thread_args game_handler_args;
     game_handler_args.state = state;
 
-    pthread_t game_handler_thread, alien_movement_thread;
+    pthread_t game_handler_thread, alien_movement_thread, game_update_timer_thread;
 
     if (pthread_mutex_init(&game_state_mutex, NULL) != 0) {
         perror("Mutex initialization failed");
@@ -786,6 +825,12 @@ int main() {
         return 1;
     }
 
+    if (pthread_create(&game_update_timer_thread, NULL, (void *)game_update_timer, &game_handler_args) != 0) {
+        perror("Failed to create game update timer thread");
+        return 1;
+    }
+
+    pthread_join(game_update_timer_thread, NULL);
     pthread_join(game_handler_thread, NULL);
     pthread_join(alien_movement_thread, NULL);
 

@@ -229,11 +229,9 @@ void * display_client(void *arg){
  
         deserialize_message(buffer, bytes_received, &msg);
 
-//        pthread_mutex_lock(&ncurses_mutex);
         clear();
         draw_avatar_game(msg.scores, msg.grid, msg.current_players, msg.game_over, args->player_char);
         refresh();
-  //      pthread_mutex_unlock(&ncurses_mutex);
     }
 
     zmq_close(socket);

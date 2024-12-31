@@ -14,8 +14,6 @@
 #include "utils.h"
 
 // Function declarations
-void random_move_aliens(GameState *state, time_t current_time);
-
 void populate_grid_from_gamestate(GameState *state);
 
 void update_game_state(GameState *state, time_t current_time);
