@@ -25,8 +25,6 @@ typedef struct {
 } thread_args;
 
 
-
-
 /** 
  * @brief This function populates the grid of the state according to the current position of alliens, shots and players, in this order, meaning that if a player is in the same position as an shot, the player will be drawn on top of the alien 
  *
@@ -62,7 +60,7 @@ void populate_grid_from_gamestate(GameState *state){
     for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
         if (state->players[i].name != ' ') {
             if (state->players[i].stunned) {
-                state->grid[state->players[i].y][state->players[i].x] = 'a' +   state->players[i].name - 'A';
+                state->grid[state->players[i].y][state->players[i].x] = 'a' + state->players[i].name - 'A';
             } else {
                 state->grid[state->players[i].y][state->players[i].x] = state->players[i].name;
             }
@@ -129,7 +127,9 @@ void update_game_state(GameState *state, time_t current_time) {
             insert_node(state->aliens, alien);
         }
     }
+    
 
+    // Remove Stuneed status from players
     for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
         if (state->players[i].stunned && current_time > state->players[i].end_stun_time) {
             state->players[i].stunned = false;
@@ -327,6 +327,13 @@ void handle_astronaut_move(GameState *state, message msg) {
             p = state->players[i];
             break;
         }
+    }
+
+
+    if (p.stunned && time(NULL) < p.end_stun_time) {
+        return;
+    } else {
+        p.stunned = false;
     }
 
     moving_direction direction = get_moving_direction(p.name);
@@ -607,7 +614,6 @@ void serialize_message(const message *msg, char *buffer, size_t *buffer_size) {
 }
 
 /**
-<<<<<<< HEAD
  * @brief Serialize a score message into a protocol buffer format
  *
  * @param msg Pointer to the message structure containing player and scores data
@@ -640,13 +646,6 @@ void serialize_score_message(message* msg, uint8_t** buffer, size_t* size) {
 /**
  * @brief This function acts as the parent process of the game server. 
  * It is used to handle the game logic and the communication with both the child process, the client and the outer-space-display
-=======
-    * @brief This function will handle the logic behind the game server, making sure all the game rules are followed
-    *
-    * @param arg the arguments passed to the function
-    *
-    * @return void* the return value of the function
->>>>>>> 6679ed5 (feat(Part2): until 2.8 done i think)
  */
 void *game_handler(void *arg){
     thread_args *args = (thread_args *)arg;
@@ -685,9 +684,7 @@ void *game_handler(void *arg){
         zmq_recv(socket, &msg, sizeof(message), 0);
 
         // process and create the response message to the client
-        pthread_mutex_lock(&game_state_mutex);
         message response = handle_new_message(state, msg);
-        pthread_mutex_unlock(&game_state_mutex);
 
         // Response information
         for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
@@ -730,20 +727,15 @@ void *game_handler(void *arg){
         serialize_message(&msg, buffer, &buffer_size);
 
         // Send the topic and message as multipart
-<<<<<<< HEAD
-        zmq_send(publisher, "UPDATE", 6, ZMQ_SNDMORE); // Send topic
-        zmq_send(publisher, buffer, buffer_size, 0);   // Send serialized message
+        zmq_send(pub_sub_socket, "UPDATE", 6, ZMQ_SNDMORE); // Send topic
+        zmq_send(pub_sub_socket, buffer, buffer_size, 0);   // Send serialized message
 
         serialize_score_message(&msg, &buffer_pointer, &buffer_size);
 
-        zmq_send(publisher, "SCORE_UPDATE", 12, ZMQ_SNDMORE); // Send topic
-        zmq_send(publisher, buffer_pointer, buffer_size, 0);     // Send score message
+        zmq_send(pub_sub_socket, "SCORE_UPDATE", 12, ZMQ_SNDMORE); // Send topic
+        zmq_send(pub_sub_socket, buffer_pointer, buffer_size, 0);     // Send score message
 
         free(buffer_pointer);
-=======
-        zmq_send(pub_sub_socket, "UPDATE", 6, ZMQ_SNDMORE); // Send topic
-        zmq_send(pub_sub_socket, buffer, buffer_size, 0);   // Send serialized message
->>>>>>> 6679ed5 (feat(Part2): until 2.8 done i think)
     }
 
     // Cleanup
@@ -753,7 +745,6 @@ void *game_handler(void *arg){
 
     pthread_exit(NULL);
 }
-
 
 void *alien_handler(void *arg) {
     thread_args *args = (thread_args *)arg;
@@ -768,9 +759,7 @@ void *alien_handler(void *arg) {
     pthread_exit(NULL);
 }
 
-void * game_update_timer(void *arg) {
-    thread_args *args = (thread_args *)arg;
-
+void *tick_handler(void *arg) {
     void *context = zmq_ctx_new();
     void *socket =  zmq_socket(context, ZMQ_REQ);
 
@@ -792,12 +781,7 @@ void * game_update_timer(void *arg) {
         zmq_recv(socket, &response, sizeof(response), 0); // Receive message from parent
         usleep(100000); // Sleep for 0.1 seconds
     }
-
-    zmq_close(socket);
-    zmq_ctx_destroy(context);
-
     pthread_exit(NULL);
-
 }
 
 int main() {
@@ -806,7 +790,7 @@ int main() {
     thread_args game_handler_args;
     game_handler_args.state = state;
 
-    pthread_t game_handler_thread, alien_movement_thread, game_update_timer_thread;
+    pthread_t game_handler_thread, alien_movement_thread, tick_thread;
 
     if (pthread_mutex_init(&game_state_mutex, NULL) != 0) {
         perror("Mutex initialization failed");
@@ -825,14 +809,14 @@ int main() {
         return 1;
     }
 
-    if (pthread_create(&game_update_timer_thread, NULL, (void *)game_update_timer, &game_handler_args) != 0) {
-        perror("Failed to create game update timer thread");
+    if (pthread_create(&tick_thread, NULL, (void *)tick_handler, &game_handler_args) != 0) {
+        perror("Failed to create tick thread");
         return 1;
     }
 
-    pthread_join(game_update_timer_thread, NULL);
     pthread_join(game_handler_thread, NULL);
     pthread_join(alien_movement_thread, NULL);
+    pthread_join(tick_thread, NULL);
 
     return 0;
 }
