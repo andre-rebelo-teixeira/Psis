@@ -10,7 +10,8 @@ typedef enum msg_t {
     ASTRONAUT_DISCONNECT, 
     OUTER_SPACE_UPDATE,
     RESPONSE, 
-    TICK
+    TICK,
+    SERVER_SHUTDOWN
 } msg_t; // Types of messages
 
 typedef struct message

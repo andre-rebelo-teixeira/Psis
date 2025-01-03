@@ -254,7 +254,9 @@ int main() {
     void *pub_sub_context  = zmq_ctx_new();
     void *pub_sub_socket = zmq_socket(pub_sub_context, ZMQ_SUB);
     zmq_connect(pub_sub_socket, PUBSUB_ADDRESS);
+    zmq_connect(pub_sub_socket, SERVERSHUTDOWN_ADDRESS);
     zmq_setsockopt(pub_sub_socket, ZMQ_SUBSCRIBE, "UPDATE", 6);
+    zmq_setsockopt(pub_sub_socket, ZMQ_SUBSCRIBE, "SHUTDOWN", 8);
 
     thread_arguments display_args;
     display_args.context = pub_sub_context;

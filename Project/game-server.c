@@ -797,11 +797,33 @@ void* keyboard_handler(void* arg) {
     thread_args* args = (thread_args*)arg;
     int ch;
     position pos;
+    char buffer[1024];
+    size_t buffer_size;
+    message msg;
+
+    void *context = zmq_ctx_new();
+    void *socket = zmq_socket(context, ZMQ_PUB); 
+
+    if (zmq_bind(socket, SERVERSHUTDOWN_ADDRESS) != 0) {
+        perror("Parent publisher zmq_bind failed");
+        zmq_close(socket);
+        zmq_close(socket);
+        zmq_ctx_destroy(context);
+        exit(1);
+    }
 
     while (1) {
         ch = getch();
         
         if (ch == 'q' || ch == 'Q') {
+            msg.type = SERVER_SHUTDOWN;
+            msg.game_over = true;
+            serialize_message(&msg, buffer, &buffer_size);
+
+            // Send the topic and message as multipart
+            zmq_send(socket, "SHUTDOWN", 8, ZMQ_SNDMORE); // Send topic
+            zmq_send(socket, buffer, buffer_size, 0);   // Send serialized message
+
             endwin();
             pthread_mutex_destroy(&game_state_mutex);
             exit(0);
