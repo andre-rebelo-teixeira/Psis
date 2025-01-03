@@ -469,6 +469,7 @@ bool handle_astronaut_zap(GameState *state, message msg) {
 message handle_new_message(GameState* state,  message msg) {
     message response; 
     response.character = msg.character;
+    response.game_over = state->game_over;
     char name = ' ';
 
     switch (msg.type) {
@@ -791,13 +792,63 @@ void *tick_handler(void *arg) {
     pthread_exit(NULL);
 }
 
+void* keyboard_handler(void* arg) {
+    thread_args* args = (thread_args*)arg;
+    int ch;
+    position pos;
+
+    while (1) {
+        ch = getch();
+        
+        if (ch == 'q' || ch == 'Q') {
+            endwin();
+            pthread_mutex_destroy(&game_state_mutex);
+            exit(0);
+        }
+        else if (ch == 'r' || ch == 'R') {
+            pthread_mutex_lock(&game_state_mutex);
+            
+            // Save player names and their usage status
+            Player saved_players[MAX_PLAYERS];
+            bool saved_names_used[MAX_PLAYERS];
+            unsigned int saved_player_count = args->state->player_count;
+            
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                saved_players[i] = args->state->players[i];
+                saved_names_used[i] = args->state->players_name_used[i];
+            }
+
+            // Reset game state
+            GameState* new_state = init_game();
+
+            // Restore player names and their initial positions
+            new_state->player_count = saved_player_count;
+            for (int i = 0; i < MAX_PLAYERS; i++) {
+                new_state->players[i].name = saved_players[i].name;
+                pos = get_start_position(new_state->players[i].name);
+                new_state->players[i].x = pos.x;
+                new_state->players[i].y = pos.y;
+                new_state->players_name_used[i] = saved_names_used[i];
+            }
+
+            memcpy(args->state, new_state, sizeof(GameState));
+            free(new_state);
+
+            pthread_mutex_unlock(&game_state_mutex);
+        }
+
+    }
+    
+    return NULL;
+}
+
 int main() {
     GameState *state = init_game();     
 
     thread_args game_handler_args;
     game_handler_args.state = state;
 
-    pthread_t game_handler_thread, alien_movement_thread, tick_thread;
+    pthread_t keyboard_thread, game_handler_thread, alien_movement_thread, tick_thread;
 
     if (pthread_mutex_init(&game_state_mutex, NULL) != 0) {
         perror("Mutex initialization failed");
@@ -805,6 +856,11 @@ int main() {
     }
 
     init_ncurses();
+
+    if (pthread_create(&keyboard_thread, NULL, keyboard_handler, &game_handler_args) != 0) {
+        perror("Failed to create keyboard handler thread");
+        return 1;
+    }
 
     if (pthread_create(&game_handler_thread, NULL, (void *)game_handler, &game_handler_args) != 0) {
         perror("Failed to create game handler thread");
@@ -821,9 +877,14 @@ int main() {
         return 1;
     }
 
+    pthread_join(keyboard_thread, NULL);
     pthread_join(game_handler_thread, NULL);
     pthread_join(alien_movement_thread, NULL);
     pthread_join(tick_thread, NULL);
+
+    endwin();  // Clean up ncurses
+    pthread_mutex_destroy(&game_state_mutex);
+    free(state);
 
     return 0;
 }

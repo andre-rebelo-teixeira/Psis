@@ -273,37 +273,54 @@ int main() {
     zmq_send(req_socket, &msg, sizeof(msg), 0);
     zmq_recv(req_socket, &reply, sizeof(reply), 0);
 
-    thread_arguments input_args;
-    input_args.context = req_context;
-    input_args.socket = req_socket;
-    input_args.type = INPUT_HANDLER;
-    input_args.player_char = reply.character;
-    display_args.player_char = reply.character;
+    // Check if assigned chatacter is valid | Check if server is full
+    if(reply.character != ' ') {
+        
+        thread_arguments input_args;
+        input_args.context = req_context;
+        input_args.socket = req_socket;
+        input_args.type = INPUT_HANDLER;
+        input_args.player_char = reply.character;
+        display_args.player_char = reply.character;
 
 
-    pthread_t display_thread, input_thread;
+        pthread_t display_thread, input_thread;
 
-    // Ncurses setup
-    init_ncurses();
-    
-    keypad(stdscr, TRUE);
+        // Ncurses setup
+        init_ncurses();
+        
+        keypad(stdscr, TRUE);
 
-    if (pthread_create(&display_thread, NULL, display_client, &display_args) != 0) {
-        perror("Failed to create display thread");
-        return 1;
+        if (pthread_create(&display_thread, NULL, display_client, &display_args) != 0) {
+            perror("Failed to create display thread");
+            return 1;
 
+        }
+
+        printf("Input thread being created");
+
+        if (pthread_create(&input_thread, NULL, input_client, &input_args) != 0) {
+            perror("Failed to create input thread");
+            return 1;
+        }
+
+        // Wait for threads to complete
+        pthread_join(input_thread, NULL);
+        pthread_join(display_thread, NULL);
+
+        pthread_mutex_destroy(&mutex);
+
+        endwin();
+
+    }else{
+        printf("SERVER IS FULL!\n");
     }
 
-    printf("Input thread being created");
+    // Clean up
+    zmq_close(pub_sub_socket);
+    zmq_ctx_destroy(pub_sub_context);
+    zmq_close(req_socket);
+    zmq_ctx_destroy(req_context);
 
-    if (pthread_create(&input_thread, NULL, input_client, &input_args) != 0) {
-        perror("Failed to create input thread");
-        return 1;
-    }
-
-    // Wait for threads to complete
-    pthread_join(input_thread, NULL);
-
-    pthread_mutex_destroy(&mutex);
     return 0;
 }

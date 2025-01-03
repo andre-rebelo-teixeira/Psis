@@ -4,6 +4,7 @@ import curses
 from curses import wrapper
 import os
 import re
+from collections import defaultdict
 
 # utils.h file location
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -33,28 +34,28 @@ def draw_border(stdscr):
 
 def draw_table_header(stdscr):
     h, w = stdscr.getmaxyx()
-    header = "| Player | Score |"
+    header = "| Player | Score | High Score |"
     stdscr.addstr(2, w//2 - len(header)//2, header)
     stdscr.addstr(3, w//2 - len(header)//2, "-" * len(header))
 
-def update_display(stdscr, players, scores):
+def update_display(stdscr, players, scores, high_scores):
     h, w = stdscr.getmaxyx()
     
     # Clear the previous content
-    for i in range(4, h-1):
+    for i in range(4, h-2):
         stdscr.addstr(i, 1, " " * (w-2))
     
-    # Display players and scores in a table format
+    # Display players, scores, and high scores in a table format
     row = 4
     for player, score in zip(players, scores):
         if player != ' ':
-            table_row = f"| {player:^6} | {score:^5} |"
+            table_row = f"| {player:^6} | {score:^5} | {high_scores[player]:^10} |"
             stdscr.addstr(row, w//2 - len(table_row)//2, table_row)
             row += 1
     
     # Draw bottom border of the table
     if row > 4:
-        bottom_border = "-" * len("| Player | Score |")
+        bottom_border = "-" * len("| Player | Score | High Score |")
         stdscr.addstr(row, w//2 - len(bottom_border)//2, bottom_border)
     
     stdscr.refresh()
@@ -73,28 +74,30 @@ def main(stdscr):
     
     previous_players = None
     previous_scores = None
+    high_scores = defaultdict(int)
     
     while True:
-        try:
-            # Receive message
-            topic = subscriber.recv_string()
-            message = subscriber.recv()
-            
-            # Parse the score update
-            score_message = score_message_pb2.ScoreUpdate()
-            score_message.ParseFromString(message)
-            
-            players = score_message.current_players
-            scores = list(score_message.scores)  # Convert to list for comparison
-            
-            # Check if players or scores have changed
-            if players != previous_players or scores != previous_scores:
-                update_display(stdscr, players, scores)
-                previous_players = players
-                previous_scores = scores
-            
-        except KeyboardInterrupt:
-            break
+        # Receive message
+        topic = subscriber.recv_string()
+        message = subscriber.recv()
+        
+        # Parse the score update
+        score_message = score_message_pb2.ScoreUpdate()
+        score_message.ParseFromString(message)
+        
+        players = score_message.current_players
+        scores = score_message.scores
+        
+        # Update high scores
+        for player, score in zip(players, scores):
+            if player != ' ':
+                high_scores[player] = max(high_scores[player], score)
+        
+        # Check if players or scores have changed
+        if players != previous_players or scores != previous_scores:
+            update_display(stdscr, players, scores, high_scores)
+            previous_players = players
+            previous_scores = scores
 
     # Clean up
     subscriber.close()
