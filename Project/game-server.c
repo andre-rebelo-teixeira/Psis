@@ -95,11 +95,12 @@ void update_game_state(GameState *state, long long current_time) {
     // Repopulate Aliens if needed
     // Only repopulate if the less kill has been made more than 10 seconds ago
     if(state->last_alien_killed + 10 * 1000 < current_time && state->aliens->size < 256) {
-        unsigned int delta = state->aliens->size;
+        unsigned int delta = state->aliens->size * 0.1 + 1;
         state->last_alien_killed = current_time;
 
         // Here we are limiting the number of aliens to 256 even tho it is not specified in the requirements, but not only do we avoid memory issues, but we also would fall in the problem of having more aliens than space in the board for them 
         while(delta > 0 && state->aliens->size < 256) {
+            delta--;
             Alien *alien = (Alien *) calloc(1, sizeof(Alien));
             if (alien == NULL) {
                 perror("Failed to allocate memory for alien");
