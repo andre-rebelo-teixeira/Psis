@@ -2,6 +2,7 @@
 #define UTILS_H
 
 #include <time.h>
+#include <stdbool.h>
 #include "list.h"
 
 
@@ -13,7 +14,7 @@
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
 #define MAX_PLAYERS 8
-#define START_ALIENS_COUNT 85 
+#define START_ALIENS_COUNT 5 
 #define GRID_SIZE 20
 #define MAX_MSG_LEN 256
 
@@ -30,7 +31,7 @@ typedef struct{
 typedef struct {
     position pos;
     char shot_symbol;
-    time_t end_time;
+    long long end_time;
 } Shot;
 
 typedef enum {
@@ -44,7 +45,7 @@ typedef enum {
 typedef struct {
     int x; 
     int y;
-    time_t next_move;
+    long long next_move;
 } Alien; 
 
 typedef struct {
@@ -53,8 +54,8 @@ typedef struct {
     char name;
     int score;
     bool stunned; 
-    time_t end_stun_time;
-    time_t next_shot_time;
+    long long end_stun_time;
+    long long next_shot_time;
 } Player;
 
 // Game elements
@@ -66,10 +67,16 @@ typedef struct {
     List *shots;
     char grid[GRID_SIZE][GRID_SIZE];
     unsigned int player_count;
-    time_t last_alien_killed;
+    long long last_alien_killed;
 } GameState;
 
 void init_ncurses();
 void draw_border_with_numbers();
+
+static inline long long ms_since_epoch() {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return (long long)ts.tv_sec * 1000LL + ts.tv_nsec / 1000000LL;
+}
 
 #endif

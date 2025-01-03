@@ -13,7 +13,7 @@ game-server: game-server.c utils.c utils.h messages.h list.h game-server.h score
 	$(CC) game-server.c utils.c score_message.pb-c.c -o game-server $(NCURSES) $(ZMQ) $(PROTOBUF)
         
 astronaut-client: astronaut-client.c utils.c utils.h messages.h 
-	$(CC) astronaut-client.c -o astronaut-client $(NCURSES) $(ZMQ)
+	$(CC) astronaut-client.c utils.c -o astronaut-client $(NCURSES) $(ZMQ)
 
 outer-space-display: outer-space-display.c utils.c utils.h messages.h
 	$(CC) outer-space-display.c utils.c -o outer-space-display $(NCURSES) $(ZMQ)

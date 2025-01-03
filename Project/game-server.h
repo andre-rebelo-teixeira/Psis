@@ -16,7 +16,7 @@
 // Function declarations
 void populate_grid_from_gamestate(GameState *state);
 
-void update_game_state(GameState *state, time_t current_time);
+void update_game_state(GameState *state, long long current_time);
 
 // Drawing functions
 void draw_shots(GameState *state);

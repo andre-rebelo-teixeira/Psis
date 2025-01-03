@@ -76,7 +76,7 @@ void populate_grid_from_gamestate(GameState *state){
  *
  * @return void
  */
-void update_game_state(GameState *state, time_t current_time) {
+void update_game_state(GameState *state, long long current_time) {
     // Remove expired shots
     Node * current = state->shots->head;
     while (current != NULL) {
@@ -90,32 +90,16 @@ void update_game_state(GameState *state, time_t current_time) {
         }
     }
 
-    // Move the aliens
-    current = state->aliens->head;
 
-    while(current != NULL) {
-        Alien *alien = (Alien *)current->data;
-        if (current_time > alien->next_move) {
-            int delta_x = get_random_number(-1, 1);
-            int delta_y = get_random_number(-1, 1);
-
-            alien->x = min(max(alien->x + delta_x, 2), GRID_SIZE - 2 - 1);
-            alien->y = min(max(alien->y + delta_y, 2), GRID_SIZE - 2 - 1);
-            alien->next_move = current_time+ 1;
-        }
-
-        state->grid[alien->y][alien->x] = '*';
-        current = current->next;
-    }
 
     // Repopulate Aliens if needed
     // Only repopulate if the less kill has been made more than 10 seconds ago
-    if(state->last_alien_killed + 10 < current_time){
-        unsigned int count = state->aliens->size;
+    if(state->last_alien_killed + 10 * 1000 < current_time && state->aliens->size < 256) {
+        unsigned int delta = state->aliens->size;
         state->last_alien_killed = current_time;
 
         // Here we are limiting the number of aliens to 256 even tho it is not specified in the requirements, but not only do we avoid memory issues, but we also would fall in the problem of having more aliens than space in the board for them 
-        for (unsigned int i = 0; i < min(count *0.1, 16*16); i++) {
+        while(delta > 0 && state->aliens->size < 256) {
             Alien *alien = (Alien *) calloc(1, sizeof(Alien));
             if (alien == NULL) {
                 perror("Failed to allocate memory for alien");
@@ -151,6 +135,7 @@ void draw_game_state(GameState *state) {
 
     // Draw grid
     if (!state->game_over) {
+        mvprintw(1, GRID_SIZE + 10, "Number of aliens alive %d", state->aliens->size);
         for (int y = 0; y < GRID_SIZE; y++) {
             for (int x = 0; x < GRID_SIZE; x++) {
                 char ch = state->grid[y][x];
@@ -255,7 +240,7 @@ char handle_astronaut_connect(GameState* state, message msg) {
             state->players[i].x = pos.x;
             state->players[i].y = pos.y;
             state->players_name_used[i] = true;
-            state->players[i].next_shot_time = time(NULL);
+            state->players[i].next_shot_time = ms_since_epoch();
             state->player_count++;
             break;
         }
@@ -290,7 +275,7 @@ void  handle_astronaut_disconnect(GameState *state, message msg) {
             state->player_count--;
             state->players[i].x = -1;
             state->players[i].y = -1;
-            state->players[i].score = -1;
+            state->players[i].score = 0;
             break;
         }
     }
@@ -330,7 +315,7 @@ void handle_astronaut_move(GameState *state, message msg) {
     }
 
 
-    if (p.stunned && time(NULL) < p.end_stun_time) {
+    if (p.stunned && ms_since_epoch() < p.end_stun_time) {
         return;
     } else {
         p.stunned = false;
@@ -390,16 +375,16 @@ bool handle_astronaut_zap(GameState *state, message msg) {
         }
     }
 
-    if (p.stunned && time(NULL) < p.end_stun_time) {
+    if (p.stunned && ms_since_epoch() < p.end_stun_time) {
         return false;
     } else {
         p.stunned = false;
     }
 
-    if (time(NULL) < p.next_shot_time) {
+    if (ms_since_epoch() < p.next_shot_time) {
         return false;
     }
-    p.next_shot_time = time(NULL) + 3;
+    p.next_shot_time = ms_since_epoch() + 3 * 1000;
 
 
     firing_direction direction = get_firing_direction(p.name);
@@ -417,7 +402,7 @@ bool handle_astronaut_zap(GameState *state, message msg) {
         }
         s->pos.x = shot.x;
         s->pos.y = shot.y;
-        s->end_time = time(NULL) + 0.5;
+        s->end_time = ms_since_epoch() + 0.5 * 1000;
 
         if (direction == LEFT_TO_RIGHT || direction == RIGHT_TO_LEFT) {
             s->shot_symbol = '-';
@@ -443,7 +428,7 @@ bool handle_astronaut_zap(GameState *state, message msg) {
             Alien *alien = (Alien *)current->data;
 
             if (alien->x == shot.x && alien->y == shot.y) {
-                state->last_alien_killed = time(NULL);
+                state->last_alien_killed = ms_since_epoch();
                 // Remove the alien from the list
                 Node * next = current->next;
                 remove_node(state->aliens, current, free_ptr);
@@ -463,7 +448,7 @@ bool handle_astronaut_zap(GameState *state, message msg) {
     for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
         if (zapped_player[i]) {
             state->players[i].stunned = true;
-            state->players[i].end_stun_time = time(NULL) + 10; // Stun for 5 seconds
+            state->players[i].end_stun_time = ms_since_epoch() + 10 * 1000; // Stun for 5 seconds
         }
     }
 
@@ -542,7 +527,7 @@ GameState* init_game(){
         state->players[i].name = ' ';
         state->players[i].stunned = false;
         state->players[i].end_stun_time = 0;
-        state->players[i].next_shot_time = time(NULL) - 1;
+        state->players[i].next_shot_time = ms_since_epoch();
     }
 
     // Initialize aliens
@@ -566,13 +551,13 @@ GameState* init_game(){
         if (alien == NULL) {
             perror("Failed to allocate alien");
         }
-        alien->next_move = time(NULL);
+        alien->next_move = ms_since_epoch();
         alien->x = get_random_number(2, GRID_SIZE - 2);
         alien->y = get_random_number(2, GRID_SIZE - 2);
         insert_node(state->aliens, alien);
     }
 
-    state->last_alien_killed = time(NULL);
+    state->last_alien_killed = ms_since_epoch();
 
     return state;
 }
@@ -702,12 +687,13 @@ void *game_handler(void *arg){
         pthread_mutex_lock(&game_state_mutex);
 
         // Update the game state
-        update_game_state(state, time(NULL));
+        update_game_state(state, ms_since_epoch());
         populate_grid_from_gamestate(state);
-        draw_game_state(state);
 
         // Unlock the mutex
         pthread_mutex_unlock(&game_state_mutex);
+
+        draw_game_state(state);
 
         // Refresh the screen with the new repainted game
         refresh();
@@ -749,11 +735,32 @@ void *game_handler(void *arg){
 void *alien_handler(void *arg) {
     thread_args *args = (thread_args *)arg;
     GameState *state = args->state;
+    Node * current = NULL;
 
     while(1) {
+        long long current_time = ms_since_epoch();
+        // Move the aliens
         pthread_mutex_lock(&game_state_mutex);
+        current = state->aliens->head;
+
+        while(current != NULL) {
+            Alien *alien = (Alien *)current->data;
+            if (current_time > alien->next_move) {
+                int delta_x = get_random_number(-1, 1);
+                int delta_y = get_random_number(-1, 1);
+
+                int randomness_coefficient = get_random_number(-100, 100); // This value if used to ensure the aliens won't all move at the same time, and instead of moving at fixed rate of 1 square per second, they time interval they will have between moves will be between 0.9s and 1.1s making the game seem more dynamic
+
+                alien->x = min(max(alien->x + delta_x, 2), GRID_SIZE - 2 - 1);
+                alien->y = min(max(alien->y + delta_y, 2), GRID_SIZE - 2 - 1);
+                alien->next_move = current_time + 1 * 1000 +  randomness_coefficient;
+            }
+
+            state->grid[alien->y][alien->x] = '*';
+            current = current->next;
+        }
         pthread_mutex_unlock(&game_state_mutex);
-        usleep(50000); // Sleep for 0.5 seconds
+        usleep(10000); // Sleep for 0.5 seconds
     }
 
     pthread_exit(NULL);

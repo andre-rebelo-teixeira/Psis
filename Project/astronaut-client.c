@@ -15,98 +15,51 @@ int main(){
     void *context = zmq_ctx_new();
     void *socket = zmq_socket(context, ZMQ_REQ);
     zmq_connect(socket, ADDRESS);
-    printf("Connected to the server\n");
-
 
     // Send connection message to the server
     msg.type = ASTRONAUT_CONNECT;
     zmq_send(socket, &msg, sizeof(msg), 0);
     zmq_recv(socket, &reply, sizeof(reply), 0);
-    printf("Received reply: %c\n", reply.character);
     character = reply.character;
     
 
     // Ncurses setup
-    initscr();
-    noecho();
-    cbreak();
-    nodelay(stdscr, TRUE);
+    init_ncurses();
     keypad(stdscr, TRUE);
-    int message_counter = 0;
+
 
     while(1){
     	key = getch();		
-        n++;
         switch (key){
             // Movement keys are pressed
             case KEY_LEFT:
                 msg.type = ASTRONAUT_MOVEMENT;
                 msg.move = LEFT;
                 msg.character = character;
-                // Send the message to the server
-                zmq_send(socket, &msg, sizeof(msg), 0);
-                zmq_recv(socket, &reply, sizeof(reply), 0);
-                for (int i = 0; i < MAX_PLAYERS; i++) {
-                    if (reply.current_players[i] == reply.character) {
-                        mvprintw(0, 0, "Current score: %d\n", reply.scores[i]);
-                    }
-                }
                 break;
 
             case KEY_RIGHT:
                 msg.type = ASTRONAUT_MOVEMENT;
                 msg.move = RIGHT;
                 msg.character = character;
-                // Send the message to the server
-                zmq_send(socket, &msg, sizeof(msg), 0);
-                zmq_recv(socket, &reply, sizeof(reply), 0);
-                for (int i = 0; i < MAX_PLAYERS; i++) {
-                    if (reply.current_players[i] == reply.character) {
-                        mvprintw(0, 0, "Current score: %d\n", reply.scores[i]);
-                    }
-                }
                 break;
 
             case KEY_UP:
                 msg.type = ASTRONAUT_MOVEMENT;
                 msg.move = UP;
                 msg.character = character;
-                // Send the message to the server
-                zmq_send(socket, &msg, sizeof(msg), 0);
-                zmq_recv(socket, &reply, sizeof(reply), 0);
-                for (int i = 0; i < MAX_PLAYERS; i++) {
-                    if (reply.current_players[i] == reply.character) {
-                        mvprintw(0, 0, "Current score: %d\n", reply.scores[i]);
-                    }
-                }
                 break;
 
             case KEY_DOWN:
                 msg.type = ASTRONAUT_MOVEMENT;
                 msg.move = DOWN;
                 msg.character = character;
-                // Send the message to the server
-                zmq_send(socket, &msg, sizeof(msg), 0);
-                zmq_recv(socket, &reply, sizeof(reply), 0);
-                for (int i = 0; i < MAX_PLAYERS; i++) {
-                    if (reply.current_players[i] == reply.character) {
-                        mvprintw(0, 0, "Current score: %d\n", reply.scores[i]);
-                    }
-                }
                 break;
 
             // Shooting key is pressed
             case ' ':
                 msg.type = ASTRONAUT_ZAP;
                 msg.character = character;
-                // Send the message to the server
-                zmq_send(socket, &msg, sizeof(msg), 0);
-                zmq_recv(socket, &reply, sizeof(reply), 0);
-                for (int i = 0; i < MAX_PLAYERS; i++) {
-                    if (reply.current_players[i] == reply.character) {
-                        mvprintw(0, 0, "Current score: %d\n", reply.scores[i]);
-                    }
-                }
                 break;
 
             // Exit key is pressed
@@ -114,20 +67,31 @@ int main(){
             case 'Q':
                 msg.type = ASTRONAUT_DISCONNECT;
                 msg.character = character;
-                // Send the message to the server
-                zmq_send(socket, &msg, sizeof(msg), 0);
-                zmq_recv(socket, &reply, sizeof(reply), 0);
-                for (int i = 0; i < MAX_PLAYERS; i++) {
-                    if (reply.current_players[i] == reply.character) {
-                        mvprintw(0, 0, "Final score: %d\n", reply.scores[i]);
-                    }
-                }
                 break;
 
             default:
-                key = 'x'; 
+                msg.type = TICK;
                 break;
         }
+
+
+        // Send the message to the server
+        zmq_send(socket, &msg, sizeof(msg), 0);
+        zmq_recv(socket, &reply, sizeof(reply), 0);
+
+        for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
+            if (reply.current_players[i] == character) {
+                mvprintw(1, 0, "Score: %d\n", reply.scores[i]);
+            }
+        }
+        if (reply.game_over) {
+            mvprintw(0, 0, "Game has ended\n");
+        }
+
+        if  (msg.type == ASTRONAUT_DISCONNECT) {
+            break;
+        }
+
     }
 
     endwin(); // End ncurses
