@@ -802,9 +802,9 @@ void* keyboard_handler(void* arg) {
     message msg;
 
     void *context = zmq_ctx_new();
-    void *socket = zmq_socket(context, ZMQ_PUB); 
+    void *socket = zmq_socket(context, ZMQ_PUB);
 
-    if (zmq_bind(socket, SERVERSHUTDOWN_ADDRESS) != 0) {
+    if (zmq_bind(socket, SERVERSHUTDOWN_PUBSUBADDRESS) != 0) {
         perror("Parent publisher zmq_bind failed");
         zmq_close(socket);
         zmq_close(socket);

@@ -115,22 +115,25 @@ int main(){
     void *context = zmq_ctx_new();
     void *subscriber = zmq_socket(context, ZMQ_SUB);
     zmq_connect(subscriber, PUBSUB_ADDRESS);
+    zmq_connect(subscriber, SERVERSHUTDOWN_PUBSUBADDRESS);
     printf("Connected to the server\n");
 
     // Subscribe to topic
     zmq_setsockopt(subscriber, ZMQ_SUBSCRIBE, "UPDATE", 6);
+    zmq_setsockopt(subscriber, ZMQ_SUBSCRIBE, "SHUTDOWN", 8);
 
     char topic[64];
     char buffer[1024];
+    message msg;
+    msg.game_over = false;
 
-    while (1) {
+    while (!msg.game_over) {
         zmq_recv(subscriber, topic, sizeof(topic), 0);
         
         int bytes_received = zmq_recv(subscriber, buffer, sizeof(buffer), 0);
 
         if (bytes_received > 0) {
             // Deserialize and process the message
-            message msg;
             deserialize_message(buffer, bytes_received, &msg);
             
             clear();

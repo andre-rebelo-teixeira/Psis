@@ -9,7 +9,7 @@
 #define SERVER_ADDRESS "tcp://*:5555" // Server binds to this address
 #define ADDRESS "tcp://127.0.0.1:5555"
 #define PUBSUB_ADDRESS "tcp://127.0.0.1:5556"
-#define SERVERSHUTDOWN_ADDRESS "tcp://127.0.0.1:5557"
+#define SERVERSHUTDOWN_PUBSUBADDRESS "tcp://127.0.0.1:5557"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 #define max(a, b) ((a) > (b) ? (a) : (b))
