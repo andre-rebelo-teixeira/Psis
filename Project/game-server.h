@@ -25,14 +25,15 @@ void draw_game_state(GameState *state);
 
 // Game logic functions
 GameState* init_game();
-bool handle_astronaut_zap(GameState *state, message msg);
-message handle_new_message(GameState *state, message msg);
-void handle_astronaut_move(GameState *state, message msg);
-char handle_astronaut_connect(GameState *state, message msg);
-void handle_astronaut_disconnect(GameState *state, message msg);
 
-void serialize_message(const message *msg, char *buffer, size_t *buffer_size);
-void serialize_score_message(message* msg, uint8_t** buffer, size_t* size);
+server_to_client_message handle_new_message(GameState *state, client_to_server_message msg);
+
+bool handle_astronaut_zap(GameState *state, client_to_server_message msg);
+void handle_astronaut_move(GameState *state, client_to_server_message msg);
+char handle_astronaut_connect(GameState *state, client_to_server_message msg);
+void handle_astronaut_disconnect(GameState *state, client_to_server_message msg);
+
+void serialize_message(display_update_message *msg, char *buffer, size_t *buffer_size);
 
 // Process separation functions
 

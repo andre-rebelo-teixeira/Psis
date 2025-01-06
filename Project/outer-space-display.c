@@ -12,29 +12,30 @@
  * @param buffer_size the size of the buffer
  * @param msg the message to be deserialized
  */
-void deserialize_message(const char *buffer, size_t buffer_size, message *msg) {
+void deserialize_message(const char *buffer, size_t buffer_size, display_update_message *msg) {
     size_t offset = 0;
 
-    memcpy(&msg->type, buffer + offset, sizeof(msg->type));
-    offset += sizeof(msg->type);
 
-    memcpy(&msg->move, buffer + offset, sizeof(msg->move));
-    offset += sizeof(msg->move);
+    // Copy the server shutdown flag
+    memcpy(&msg->server_shutdown, buffer, sizeof(msg->server_shutdown));
+    offset += sizeof(msg->server_shutdown);
 
-    memcpy(&msg->character, buffer + offset, sizeof(msg->character));
-    offset += sizeof(msg->character);
+    // Copy the game over flag
+    memcpy(&msg->game_over, buffer + offset, sizeof(msg->game_over));
+    offset += sizeof(msg->game_over);
 
-    memcpy(&msg->current_players, buffer + offset, sizeof(msg->current_players));
-    offset += sizeof(msg->scores);
-
-    memcpy(&msg->scores, buffer + offset, sizeof(msg->scores));
-    offset += sizeof(msg->scores);
-
+    // Copy the grid
     memcpy(&msg->grid, buffer + offset, sizeof(msg->grid));
     offset += sizeof(msg->grid);
 
-    memcpy(&msg->game_over, buffer + offset, sizeof(msg->game_over));
-    offset += sizeof(msg->game_over);
+
+    // Copy the scores
+    memcpy(&msg->scores, buffer + offset, sizeof(msg->scores));
+    offset += sizeof(msg->scores);
+    
+    // Copy the current players
+    memcpy(&msg->current_players, buffer + offset, sizeof(msg->current_players));
+    offset += sizeof(msg->current_players);
 }
 
 /**
@@ -116,32 +117,35 @@ int main(){
     void *subscriber = zmq_socket(context, ZMQ_SUB);
     zmq_connect(subscriber, PUBSUB_ADDRESS);
     zmq_connect(subscriber, SERVERSHUTDOWN_PUBSUBADDRESS);
-    printf("Connected to the server\n");
 
     // Subscribe to topic
     zmq_setsockopt(subscriber, ZMQ_SUBSCRIBE, "UPDATE", 6);
-    zmq_setsockopt(subscriber, ZMQ_SUBSCRIBE, "SHUTDOWN", 8);
 
     char topic[64];
     char buffer[1024];
-    message msg;
+    display_update_message msg;
     msg.game_over = false;
 
     while (!msg.game_over) {
         zmq_recv(subscriber, topic, sizeof(topic), 0);
         
-        int bytes_received = zmq_recv(subscriber, buffer, sizeof(buffer), 0);
+        int bytes_received = zmq_recv(subscriber, buffer, sizeof(display_update_message), 0);
 
         if (bytes_received > 0) {
             // Deserialize and process the message
             deserialize_message(buffer, bytes_received, &msg);
+            printf("buffer: %s\n", buffer);
             
             clear();
             draw_avatar_game(msg.scores, msg.grid, msg.current_players, msg.game_over);
             refresh();
-        }
 
+            if (msg.server_shutdown) {
+                //break;
+            }
+        }
     }
+
 
     zmq_close(subscriber);
     zmq_ctx_destroy(context);

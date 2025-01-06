@@ -18,9 +18,9 @@ void *display_client(void *arg);
 
 void *input_client(void *arg);
 
-message create_message(int key, char player_char);
+client_to_server_message create_message(int key, char player_char);
 
-void deserialize_message(const char *, size_t, message *);
+void deserialize_message(const char *, size_t, display_update_message *);
 
 #endif // __ASTRONAUT_DISPLAY_CLIENT_H__
 

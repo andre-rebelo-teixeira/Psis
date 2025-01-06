@@ -3,7 +3,7 @@ NCURSES = -lncurses
 ZMQ = -lzmq
 PROTOBUF = -lprotobuf-c
 
-all: protobuf game-server astronaut-client outer-space-display astronaut-display-client
+all: protobuf game-server astronaut-display-client outer-space-display astronaut-client  
 
 protobuf: score_message.proto
 	protoc --c_out=. score_message.proto

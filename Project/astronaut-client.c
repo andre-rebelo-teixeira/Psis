@@ -7,8 +7,8 @@
 int main(){
     int n = 0;
     int key;
-    message msg; // Message to be sent to the server
-    message reply; // Reply from the server
+    client_to_server_message msg; // Message to be sent to the server
+    server_to_client_message reply; // Reply from the server
     char character; // Character of the player
 
     // ZeroMQ TCP connection
@@ -84,11 +84,8 @@ int main(){
             zmq_send(socket, &msg, sizeof(msg), 0);
             zmq_recv(socket, &reply, sizeof(reply), 0);
 
-            for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
-                if (reply.current_players[i] == character) {
-                    mvprintw(1, 0, "Score: %d\n", reply.scores[i]);
-                }
-            }
+       
+            mvprintw(1, 0, "Score: %d\n", reply.score);
 
             if  (msg.type == ASTRONAUT_DISCONNECT) {
                 break;

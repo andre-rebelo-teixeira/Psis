@@ -20,8 +20,11 @@
 
 
 pthread_mutex_t game_state_mutex;
+bool server_shutdown = false;
 typedef struct {
+    bool *server_shutdown;
     GameState *state; 
+    void *zmq_context;
 } thread_args;
 
 
@@ -206,7 +209,7 @@ void draw_game_state(GameState *state) {
  *
  * @return char the name of the astronaut that was assigned to the player 
  */
-char handle_astronaut_connect(GameState* state, message msg) {
+char handle_astronaut_connect(GameState* state, client_to_server_message msg) {
     if (state == NULL) {
         fprintf(stderr, "Game state is NULL");
         return ' ';
@@ -257,7 +260,7 @@ char handle_astronaut_connect(GameState* state, message msg) {
  *
  * @return void
  */
-void  handle_astronaut_disconnect(GameState *state, message msg) {
+void  handle_astronaut_disconnect(GameState *state, client_to_server_message msg) {
     if (state == NULL) {
         fprintf(stderr, "Game state is NULL");
         return;
@@ -293,7 +296,7 @@ void  handle_astronaut_disconnect(GameState *state, message msg) {
  *
  * @return void   
  */
-void handle_astronaut_move(GameState *state, message msg) {
+void handle_astronaut_move(GameState *state, client_to_server_message msg) {
     if (state == NULL) {
         fprintf(stderr, "Game state is NULL");
         return;
@@ -355,7 +358,7 @@ void handle_astronaut_move(GameState *state, message msg) {
  * 
  * @return A boolean that is true if the game has ended -> This will mean the astronauts can no longer move or shot
  */
-bool handle_astronaut_zap(GameState *state, message msg) {
+bool handle_astronaut_zap(GameState *state, client_to_server_message msg) {
     if (state == NULL) {
         fprintf(stderr, "Game state is NULL");
         return false;
@@ -467,36 +470,41 @@ bool handle_astronaut_zap(GameState *state, message msg) {
  *
  * @return message the response message to be sent back to the client
  */
-message handle_new_message(GameState* state,  message msg) {
-    message response; 
+server_to_client_message handle_new_message(GameState* state,  client_to_server_message msg) {
+    server_to_client_message response; 
     response.character = msg.character;
     response.game_over = state->game_over;
+    response.score = 0;
+    response.status = true;
     char name = ' ';
 
     switch (msg.type) {
         case ASTRONAUT_CONNECT:
-            name = handle_astronaut_connect(state, msg);
-            response.type = RESPONSE;
-            response.character = name;  
+            response.character = handle_astronaut_connect(state, msg);
+            if (response.character == ' ') {
+                response.status = false;
+            }
+
             break;
         case ASTRONAUT_MOVEMENT:
-            if(!state->game_over) 
+            if(!state->game_over) {
                 handle_astronaut_move(state, msg);
-            response.type = RESPONSE;
-            response.character = msg.character;
+            }
             break;
         case ASTRONAUT_ZAP:
-            if (!state->game_over) 
+            if (!state->game_over){
                 state->game_over = handle_astronaut_zap(state, msg);
-            response.type = RESPONSE;
-            response.character = msg.character;
+                response.score = state->players[name - 'A'].score;
+            }
             break;
         case ASTRONAUT_DISCONNECT:
             handle_astronaut_disconnect(state, msg);
             break;
-        case OUTER_SPACE_UPDATE:
+        case TICK: 
+        case LAST_TICK:
             break;
         default:
+            response.status = false;
             break;
     }
 
@@ -573,61 +581,32 @@ GameState* init_game(){
  *
  * @return void
  */
-void serialize_message(const message *msg, char *buffer, size_t *buffer_size) {
+void serialize_message(display_update_message *msg, char *buffer, size_t *buffer_size) {
     size_t offset = 0;
 
-    memcpy(buffer + offset, &msg->type, sizeof(msg->type));
-    offset += sizeof(msg->type);
 
-    memcpy(buffer + offset, &msg->move, sizeof(msg->move));
-    offset += sizeof(msg->move);
+    // Copy the server shutdown flag 
+    memcpy(buffer, &msg->server_shutdown, sizeof(msg->server_shutdown));
+    offset += sizeof(msg->server_shutdown);
 
-    memcpy(buffer + offset, &msg->character, sizeof(msg->character));
-    offset += sizeof(msg->character);
 
-    memcpy(buffer + offset, &msg->current_players, sizeof(msg->current_players));
-    offset += sizeof(msg->scores);
-
-    memcpy(buffer + offset, &msg->scores, sizeof(msg->scores));
-    offset += sizeof(msg->scores);
-
-    memcpy(buffer + offset, &msg->grid, sizeof(msg->grid));
-    offset += sizeof(msg->grid);
-
+    // Copy the game over flag
     memcpy(buffer + offset, &msg->game_over, sizeof(msg->game_over));
     offset += sizeof(msg->game_over);
 
+    // Copy the grid
+    memcpy(buffer + offset, &msg->grid, sizeof(msg->grid));
+    offset += sizeof(msg->grid);
+
+    // Copy the scores
+    memcpy(buffer + offset, &msg->scores, sizeof(msg->scores));
+    offset += sizeof(msg->scores);
+    
+    // Copy the current players
+    memcpy(buffer + offset, &msg->current_players, sizeof(msg->current_players));
+    offset += sizeof(msg->current_players);
+
     *buffer_size = offset;
-}
-
-/**
- * @brief Serialize a score message into a protocol buffer format
- *
- * @param msg Pointer to the message structure containing player and scores data
- * @param buffer Pointer to a uint8_t pointer that will be allocated and filled with the serialized data
- * @param size Pointer to a size_t variable that holds the size of the serialized data
- *
- * @note The caller is responsible for freeing the allocated buffer after use
- */
-void serialize_score_message(message* msg, uint8_t** buffer, size_t* size) {
-    ScoreUpdate score_update = SCORE_UPDATE__INIT;
-    
-    // Create a null-terminated string from current_players
-    char current_players_str[9];  // 8 characters + null terminator
-    memcpy(current_players_str, msg->current_players, 8);
-    current_players_str[8] = '\0';
-
-    // Set the fields
-    score_update.current_players = current_players_str;
-    score_update.n_scores = 8;
-    score_update.scores = msg->scores;
-    
-    // Get size and allocate buffer
-    *size = score_update__get_packed_size(&score_update);
-    *buffer = malloc(*size);
-    
-    // Pack the message
-    score_update__pack(&score_update, *buffer);
 }
 
 /**
@@ -637,14 +616,13 @@ void serialize_score_message(message* msg, uint8_t** buffer, size_t* size) {
 void *game_handler(void *arg){
     thread_args *args = (thread_args *)arg;
     GameState *state = args->state;
-
-    message msg;
+    
+    client_to_server_message req;
     char buffer[1024];
     size_t buffer_size;
-    uint8_t* buffer_pointer;
 
     // Open ZMQ context and socket
-    void *context = zmq_ctx_new();
+    void *context = args->zmq_context;
     void *socket = zmq_socket(context, ZMQ_REP); 
 
     // Bind the socket to the address
@@ -667,20 +645,15 @@ void *game_handler(void *arg){
     }
 
     while(true) {
+        client_to_server_message req;
         // Receive messages from an existing client or a new one
-        zmq_recv(socket, &msg, sizeof(message), 0);
+        zmq_recv(socket, &req, sizeof(client_to_server_message), 0);
 
         // process and create the response message to the client
-        message response = handle_new_message(state, msg);
-
-        // Response information
-        for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
-            response.scores[i] = state->players[i].score;
-            response.current_players[i] = state->players[i].name;
-        }
+        server_to_client_message rep = handle_new_message(state, req);
 
         // Answer to the client
-        zmq_send(socket, &response, sizeof(response), 0);
+        zmq_send(socket, &rep, sizeof(server_to_client_message), 0);
 
         // ncurses function to clear the full screen allowing for a full repaint of the game
         clear();
@@ -700,38 +673,40 @@ void *game_handler(void *arg){
         // Refresh the screen with the new repainted game
         refresh();
 
-        // Publish the updated game state
-        // Create the message with the topic prepended
-        msg.type = OUTER_SPACE_UPDATE;
-        msg.character = ' ';
-        msg.move = UP;
+        display_update_message update; 
+
+        memcpy(update.grid, state->grid, sizeof(state->grid));
+        update.game_over = state->game_over;
+        update.server_shutdown =  false;
         for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
-            msg.scores[i] = state->players[i].score;
-            msg.current_players[i] = state->players[i].name;
+            if (state->players[i].name != ' ') {
+                update.current_players[i] = state->players[i].name;
+                update.scores[i] = state->players[i].score;
+            }
         }
 
-        memcpy(msg.grid, state->grid, sizeof(state->grid));
-        msg.game_over = state->game_over;
-        serialize_message(&msg, buffer, &buffer_size);
+        if (req.type == LAST_TICK) {
+            //update.server_shutdown = true;
+        }
+
+        serialize_message(&update, buffer, &buffer_size);
 
         // Send the topic and message as multipart
         zmq_send(pub_sub_socket, "UPDATE", 6, ZMQ_SNDMORE); // Send topic
-        zmq_send(pub_sub_socket, buffer, buffer_size, 0);   // Send serialized message
+        zmq_send(pub_sub_socket, buffer, buffer_size, 0);
 
-        serialize_score_message(&msg, &buffer_pointer, &buffer_size);
-
-        zmq_send(pub_sub_socket, "SCORE_UPDATE", 12, ZMQ_SNDMORE); // Send topic
-        zmq_send(pub_sub_socket, buffer_pointer, buffer_size, 0);     // Send score message
-
-        free(buffer_pointer);
+        if (req.type == LAST_TICK) {
+            break;
+        }
     }
+
+    pthread_exit(NULL);
 
     // Cleanup
     zmq_close(socket);
     zmq_close(pub_sub_socket);
     zmq_ctx_destroy(context);
 
-    pthread_exit(NULL);
 }
 
 void *alien_handler(void *arg) {
@@ -739,7 +714,7 @@ void *alien_handler(void *arg) {
     GameState *state = args->state;
     Node * current = NULL;
 
-    while(1) {
+    while(*(args->server_shutdown) == false) {
         long long current_time = ms_since_epoch();
         // Move the aliens
         pthread_mutex_lock(&game_state_mutex);
@@ -772,6 +747,8 @@ void *tick_handler(void *arg) {
     void *context = zmq_ctx_new();
     void *socket =  zmq_socket(context, ZMQ_REQ);
 
+    thread_args *args = (thread_args *)arg;
+
     if (zmq_connect(socket, ADDRESS) != 0) {
         perror("Child zmq_connect failed");
         zmq_close(socket);
@@ -779,17 +756,32 @@ void *tick_handler(void *arg) {
         exit(1);
     }
 
-    message msg;
-    msg.type = TICK;
-    msg.move = UP;
+    client_to_server_message msg;
     msg.character = ' ';
+    msg.move = UP;
+    msg.type = TICK;
 
-    while (1) {
-        message response;
-        zmq_send(socket, &msg, sizeof(msg), 0); // Send message to parent
-        zmq_recv(socket, &response, sizeof(response), 0); // Receive message from parent
+    server_to_client_message response;
+
+    while (true) {
+        server_to_client_message response;
+        zmq_send(socket, &msg, sizeof(client_to_server_message), 0); // Send message to parent
+        zmq_recv(socket, &response, sizeof(server_to_client_message), 0); // Receive message from parent
+
+        if (!response.status) {
+            fprintf(stderr, "Tick Messages are not being processed correctly in the game server, something is wrong\n");
+        }
         usleep(100000); // Sleep for 0.1 seconds
+
+        if (*(args->server_shutdown)) {
+            if (msg.type == LAST_TICK) {
+                break;
+            }
+            msg.type = LAST_TICK;
+            
+        }
     }
+
     pthread_exit(NULL);
 }
 
@@ -799,9 +791,8 @@ void* keyboard_handler(void* arg) {
     position pos;
     char buffer[1024];
     size_t buffer_size;
-    message msg;
-
-    void *context = zmq_ctx_new();
+   
+    void *context = args->zmq_context;
     void *socket = zmq_socket(context, ZMQ_PUB);
 
     if (zmq_bind(socket, SERVERSHUTDOWN_PUBSUBADDRESS) != 0) {
@@ -816,17 +807,8 @@ void* keyboard_handler(void* arg) {
         ch = getch();
         
         if (ch == 'q' || ch == 'Q') {
-            msg.type = SERVER_SHUTDOWN;
-            msg.game_over = true;
-            serialize_message(&msg, buffer, &buffer_size);
-
-            // Send the topic and message as multipart
-            zmq_send(socket, "SHUTDOWN", 8, ZMQ_SNDMORE); // Send topic
-            zmq_send(socket, buffer, buffer_size, 0);   // Send serialized message
-
-            endwin();
-            pthread_mutex_destroy(&game_state_mutex);
-            exit(0);
+            *(args->server_shutdown) = true;
+            break;
         }
         else if (ch == 'r' || ch == 'R') {
             pthread_mutex_lock(&game_state_mutex);
@@ -861,15 +843,33 @@ void* keyboard_handler(void* arg) {
         }
 
     }
-    
-    return NULL;
+
+    pthread_exit(NULL);
 }
 
 int main() {
     GameState *state = init_game();     
 
-    thread_args game_handler_args;
+    void * context = zmq_ctx_new();
+
+
+    thread_args game_handler_args, alien_handler_args, tick_handler_args, keyboard_handler_args;
+
     game_handler_args.state = state;
+    game_handler_args.zmq_context = context;
+    game_handler_args.server_shutdown = &server_shutdown;
+
+    alien_handler_args.state = state;
+    alien_handler_args.zmq_context = context;
+    alien_handler_args.server_shutdown = &server_shutdown;
+
+    tick_handler_args.state = state;
+    tick_handler_args.zmq_context = context;
+    tick_handler_args.server_shutdown = &server_shutdown;
+
+    keyboard_handler_args.state = state;
+    keyboard_handler_args.zmq_context = context;
+    keyboard_handler_args.server_shutdown = &server_shutdown;
 
     pthread_t keyboard_thread, game_handler_thread, alien_movement_thread, tick_thread;
 
@@ -880,7 +880,7 @@ int main() {
 
     init_ncurses();
 
-    if (pthread_create(&keyboard_thread, NULL, keyboard_handler, &game_handler_args) != 0) {
+    if (pthread_create(&keyboard_thread, NULL, keyboard_handler, &keyboard_handler_args) != 0) {
         perror("Failed to create keyboard handler thread");
         return 1;
     }
@@ -890,12 +890,12 @@ int main() {
         return 1;
     }
 
-    if (pthread_create(&alien_movement_thread, NULL, (void *)alien_handler, &game_handler_args) != 0) {
+    if (pthread_create(&alien_movement_thread, NULL, (void *)alien_handler, &alien_handler_args) != 0) {
         perror("Failed to create alien movement thread");
         return 1;
     }
 
-    if (pthread_create(&tick_thread, NULL, (void *)tick_handler, &game_handler_args) != 0) {
+    if (pthread_create(&tick_thread, NULL, (void *)tick_handler, &tick_handler_args) != 0) {
         perror("Failed to create tick thread");
         return 1;
     }
@@ -904,6 +904,7 @@ int main() {
     pthread_join(game_handler_thread, NULL);
     pthread_join(alien_movement_thread, NULL);
     pthread_join(tick_thread, NULL);
+
 
     endwin();  // Clean up ncurses
     pthread_mutex_destroy(&game_state_mutex);
