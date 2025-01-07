@@ -15,7 +15,7 @@ PROTOBUF_C__BEGIN_DECLS
 #endif
 
 
-typedef struct _ScoreUpdate ScoreUpdate;
+typedef struct _DisplayUpdateMessage DisplayUpdateMessage;
 
 
 /* --- enums --- */
@@ -23,47 +23,60 @@ typedef struct _ScoreUpdate ScoreUpdate;
 
 /* --- messages --- */
 
-struct  _ScoreUpdate
+struct  _DisplayUpdateMessage
 {
   ProtobufCMessage base;
   /*
-   * Current players in the game
+   * Indicates if the server is shutting down
    */
-  char *current_players;
+  protobuf_c_boolean server_shutdown;
   /*
-   * Scores of the players
+   * Indicates if the game is over
+   */
+  protobuf_c_boolean game_over;
+  /*
+   * 20x20 grid, represented as an array of strings
+   */
+  size_t n_grid;
+  char **grid;
+  /*
+   * Array of scores for 8 players
    */
   size_t n_scores;
   uint32_t *scores;
+  /*
+   * String containing current players' names (max 8 chars)
+   */
+  char *current_players;
 };
-#define SCORE_UPDATE__INIT \
- { PROTOBUF_C_MESSAGE_INIT (&score_update__descriptor) \
-    , (char *)protobuf_c_empty_string, 0,NULL }
+#define DISPLAY_UPDATE_MESSAGE__INIT \
+ { PROTOBUF_C_MESSAGE_INIT (&display_update_message__descriptor) \
+    , 0, 0, 0,NULL, 0,NULL, (char *)protobuf_c_empty_string }
 
 
-/* ScoreUpdate methods */
-void   score_update__init
-                     (ScoreUpdate         *message);
-size_t score_update__get_packed_size
-                     (const ScoreUpdate   *message);
-size_t score_update__pack
-                     (const ScoreUpdate   *message,
+/* DisplayUpdateMessage methods */
+void   display_update_message__init
+                     (DisplayUpdateMessage         *message);
+size_t display_update_message__get_packed_size
+                     (const DisplayUpdateMessage   *message);
+size_t display_update_message__pack
+                     (const DisplayUpdateMessage   *message,
                       uint8_t             *out);
-size_t score_update__pack_to_buffer
-                     (const ScoreUpdate   *message,
+size_t display_update_message__pack_to_buffer
+                     (const DisplayUpdateMessage   *message,
                       ProtobufCBuffer     *buffer);
-ScoreUpdate *
-       score_update__unpack
+DisplayUpdateMessage *
+       display_update_message__unpack
                      (ProtobufCAllocator  *allocator,
                       size_t               len,
                       const uint8_t       *data);
-void   score_update__free_unpacked
-                     (ScoreUpdate *message,
+void   display_update_message__free_unpacked
+                     (DisplayUpdateMessage *message,
                       ProtobufCAllocator *allocator);
 /* --- per-message closures --- */
 
-typedef void (*ScoreUpdate_Closure)
-                 (const ScoreUpdate *message,
+typedef void (*DisplayUpdateMessage_Closure)
+                 (const DisplayUpdateMessage *message,
                   void *closure_data);
 
 /* --- services --- */
@@ -71,7 +84,7 @@ typedef void (*ScoreUpdate_Closure)
 
 /* --- descriptors --- */
 
-extern const ProtobufCMessageDescriptor score_update__descriptor;
+extern const ProtobufCMessageDescriptor display_update_message__descriptor;
 
 PROTOBUF_C__END_DECLS
 

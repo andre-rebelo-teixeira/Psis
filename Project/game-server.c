@@ -686,7 +686,7 @@ void *game_handler(void *arg){
         }
 
         if (req.type == LAST_TICK) {
-            //update.server_shutdown = true;
+            update.server_shutdown = true;
         }
 
         serialize_message(&update, buffer, &buffer_size);

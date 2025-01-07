@@ -18,6 +18,7 @@ typedef struct
     thread_type type;
     char player_char;
     bool* server_shutdown;
+    pthread_t *thread;
 } thread_arguments;
 
 // Global Variable to the C file, this will be used to close the display when the client quits the input thread
@@ -177,6 +178,9 @@ client_to_server_message create_message(int key, char player_char)
 
 void *input_client(void *arg)
 {
+    pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, NULL);
+
     thread_arguments *args = (thread_arguments *)arg;
     void *socket = args->socket;
     void *context = args->context;
@@ -193,12 +197,13 @@ void *input_client(void *arg)
 
     while (!game_closed)
     {
+        int key = getch();
         if (*(args->server_shutdown))
         {
             break;
         }
 
-        int key = getch();
+
         client_to_server_message msg = create_message(key, player_char);
         server_to_client_message reply;
 
@@ -217,8 +222,7 @@ void *input_client(void *arg)
         }
     }
     printf("Eding input thread\n");
-
-    pthread_exit(NULL);
+    return NULL;
 }
 
 void *display_client(void *arg)
@@ -259,23 +263,27 @@ void *display_client(void *arg)
 
         deserialize_message(buffer, bytes_received, &msg);
 
-        //clear();
-        //draw_avatar_game(msg.scores, msg.grid, msg.current_players, msg.game_over, args->player_char);
-        //refresh();
+        clear();
+        draw_avatar_game(msg.scores, msg.grid, msg.current_players, msg.game_over, args->player_char);
+        refresh();
 
         if (msg.server_shutdown)
         {
+            if (pthread_cancel(*(args->thread)) != 0) {
+                perror("Failed to cancel thread");
+                exit(1);
+            }
+
             printf("Server shuting down \n");
-            *(args->server_shutdown) = true;
             break;
         }
     }
-    printf("Ending display thread\n");
 
     zmq_close(socket);
     zmq_ctx_destroy(context);
 
-    pthread_exit(NULL);
+    printf("Ending display thread\n");
+    return NULL;
 }
 
 /**
@@ -329,18 +337,11 @@ int main()
         display_args.player_char = reply.character;
 
         pthread_t display_thread, input_thread;
+        display_args.thread = &input_thread;
+        input_args.thread = NULL;
 
         // Ncurses setup
-       // init_ncurses();
-            //initscr();
-    //cbreak();
-    //noecho();
-    //curs_set(0); // Hide cursor
-    //start_color();
-    //init_pair(1, COLOR_GREEN, COLOR_BLACK); // Astronauts
-    //init_pair(2, COLOR_RED, COLOR_BLACK);   // Aliens
-    //init_pair(3, COLOR_YELLOW, COLOR_BLACK);// Laser beams
-    //init_pair(4, COLOR_WHITE, COLOR_BLACK); // Borders and text
+        init_ncurses();
 
         keypad(stdscr, TRUE);
 
@@ -362,8 +363,8 @@ int main()
         pthread_join(input_thread, NULL);
         pthread_join(display_thread, NULL);
 
+        printf("After zmq cleanup\n");
         pthread_mutex_destroy(&mutex);
-
         endwin();
     }
     else

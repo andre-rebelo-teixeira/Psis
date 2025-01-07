@@ -17,6 +17,7 @@ void deserialize_message(const char *buffer, size_t buffer_size, display_update_
 
 
     // Copy the server shutdown flag
+    // Copy the server shutdown flag
     memcpy(&msg->server_shutdown, buffer, sizeof(msg->server_shutdown));
     offset += sizeof(msg->server_shutdown);
 
@@ -28,11 +29,10 @@ void deserialize_message(const char *buffer, size_t buffer_size, display_update_
     memcpy(&msg->grid, buffer + offset, sizeof(msg->grid));
     offset += sizeof(msg->grid);
 
-
     // Copy the scores
     memcpy(&msg->scores, buffer + offset, sizeof(msg->scores));
     offset += sizeof(msg->scores);
-    
+
     // Copy the current players
     memcpy(&msg->current_players, buffer + offset, sizeof(msg->current_players));
     offset += sizeof(msg->current_players);
@@ -134,19 +134,19 @@ int main(){
         if (bytes_received > 0) {
             // Deserialize and process the message
             deserialize_message(buffer, bytes_received, &msg);
-            printf("buffer: %s\n", buffer);
             
             clear();
             draw_avatar_game(msg.scores, msg.grid, msg.current_players, msg.game_over);
             refresh();
 
             if (msg.server_shutdown) {
-                //break;
+                printf("Server Shutdown \n");
+                break;
             }
         }
     }
 
-
+    endwin();
     zmq_close(subscriber);
     zmq_ctx_destroy(context);
     return 0;

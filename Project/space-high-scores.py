@@ -34,30 +34,38 @@ def draw_border(stdscr):
 
 def draw_table_header(stdscr):
     h, w = stdscr.getmaxyx()
-    header = "| Player | Score | High Score |"
+    header = "| Player | Score |"
     stdscr.addstr(2, w//2 - len(header)//2, header)
     stdscr.addstr(3, w//2 - len(header)//2, "-" * len(header))
 
-def update_display(stdscr, players, scores, high_scores):
+def update_display(stdscr, message):
     h, w = stdscr.getmaxyx()
-    
+
     # Clear the previous content
     for i in range(4, h-2):
         stdscr.addstr(i, 1, " " * (w-2))
-    
-    # Display players, scores, and high scores in a table format
-    row = 4
-    for player, score in zip(players, scores):
-        if player != ' ':
-            table_row = f"| {player:^6} | {score:^5} | {high_scores[player]:^10} |"
+
+    # Display server status
+    server_status = f"Server Shutdown: {'Yes' if message.server_shutdown else 'No'}"
+    game_status = f"Game Over: {'Yes' if message.game_over else 'No'}"
+    stdscr.addstr(4, w//2 - len(server_status)//2, server_status)
+    stdscr.addstr(5, w//2 - len(game_status)//2, game_status)
+
+    # Display the grid
+    row = 7
+    for grid_row in message.grid:
+        stdscr.addstr(row, w//2 - len(grid_row)//2, grid_row)
+        row += 1
+
+    # Display players and scores
+    row += 1
+    for i, score in enumerate(message.scores):
+        if i < len(message.current_players):
+            player = message.current_players[i]
+            table_row = f"| {player:^6} | {score:^5} |"
             stdscr.addstr(row, w//2 - len(table_row)//2, table_row)
             row += 1
-    
-    # Draw bottom border of the table
-    if row > 4:
-        bottom_border = "-" * len("| Player | Score | High Score |")
-        stdscr.addstr(row, w//2 - len(bottom_border)//2, bottom_border)
-    
+
     stdscr.refresh()
 
 def main(stdscr):
@@ -68,36 +76,21 @@ def main(stdscr):
     context = zmq.Context()
     subscriber = context.socket(zmq.SUB)
     subscriber.connect(PUBSUB_ADDRESS)
-    subscriber.setsockopt_string(zmq.SUBSCRIBE, "SCORE_UPDATE")
+    subscriber.setsockopt_string(zmq.SUBSCRIBE, "UPDATE")
 
     initialize_curses(stdscr)
-    
-    previous_players = None
-    previous_scores = None
-    high_scores = defaultdict(int)
-    
+
     while True:
         # Receive message
         topic = subscriber.recv_string()
         message = subscriber.recv()
-        
-        # Parse the score update
-        score_message = score_message_pb2.ScoreUpdate()
-        score_message.ParseFromString(message)
-        
-        players = score_message.current_players
-        scores = score_message.scores
-        
-        # Update high scores
-        for player, score in zip(players, scores):
-            if player != ' ':
-                high_scores[player] = max(high_scores[player], score)
-        
-        # Check if players or scores have changed
-        if players != previous_players or scores != previous_scores:
-            update_display(stdscr, players, scores, high_scores)
-            previous_players = players
-            previous_scores = scores
+
+        # Parse the display update message
+        display_message = score_message_pb2.DisplayUpdateMessage()
+        display_message.ParseFromString(message)
+
+        # Update the display
+        update_display(stdscr, display_message)
 
     # Clean up
     subscriber.close()

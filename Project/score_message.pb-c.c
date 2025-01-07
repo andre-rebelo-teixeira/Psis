@@ -7,60 +7,84 @@
 #endif
 
 #include "score_message.pb-c.h"
-void   score_update__init
-                     (ScoreUpdate         *message)
+void   display_update_message__init
+                     (DisplayUpdateMessage         *message)
 {
-  static const ScoreUpdate init_value = SCORE_UPDATE__INIT;
+  static const DisplayUpdateMessage init_value = DISPLAY_UPDATE_MESSAGE__INIT;
   *message = init_value;
 }
-size_t score_update__get_packed_size
-                     (const ScoreUpdate *message)
+size_t display_update_message__get_packed_size
+                     (const DisplayUpdateMessage *message)
 {
-  assert(message->base.descriptor == &score_update__descriptor);
+  assert(message->base.descriptor == &display_update_message__descriptor);
   return protobuf_c_message_get_packed_size ((const ProtobufCMessage*)(message));
 }
-size_t score_update__pack
-                     (const ScoreUpdate *message,
+size_t display_update_message__pack
+                     (const DisplayUpdateMessage *message,
                       uint8_t       *out)
 {
-  assert(message->base.descriptor == &score_update__descriptor);
+  assert(message->base.descriptor == &display_update_message__descriptor);
   return protobuf_c_message_pack ((const ProtobufCMessage*)message, out);
 }
-size_t score_update__pack_to_buffer
-                     (const ScoreUpdate *message,
+size_t display_update_message__pack_to_buffer
+                     (const DisplayUpdateMessage *message,
                       ProtobufCBuffer *buffer)
 {
-  assert(message->base.descriptor == &score_update__descriptor);
+  assert(message->base.descriptor == &display_update_message__descriptor);
   return protobuf_c_message_pack_to_buffer ((const ProtobufCMessage*)message, buffer);
 }
-ScoreUpdate *
-       score_update__unpack
+DisplayUpdateMessage *
+       display_update_message__unpack
                      (ProtobufCAllocator  *allocator,
                       size_t               len,
                       const uint8_t       *data)
 {
-  return (ScoreUpdate *)
-     protobuf_c_message_unpack (&score_update__descriptor,
+  return (DisplayUpdateMessage *)
+     protobuf_c_message_unpack (&display_update_message__descriptor,
                                 allocator, len, data);
 }
-void   score_update__free_unpacked
-                     (ScoreUpdate *message,
+void   display_update_message__free_unpacked
+                     (DisplayUpdateMessage *message,
                       ProtobufCAllocator *allocator)
 {
   if(!message)
     return;
-  assert(message->base.descriptor == &score_update__descriptor);
+  assert(message->base.descriptor == &display_update_message__descriptor);
   protobuf_c_message_free_unpacked ((ProtobufCMessage*)message, allocator);
 }
-static const ProtobufCFieldDescriptor score_update__field_descriptors[2] =
+static const ProtobufCFieldDescriptor display_update_message__field_descriptors[5] =
 {
   {
-    "current_players",
+    "server_shutdown",
     1,
     PROTOBUF_C_LABEL_NONE,
-    PROTOBUF_C_TYPE_STRING,
+    PROTOBUF_C_TYPE_BOOL,
     0,   /* quantifier_offset */
-    offsetof(ScoreUpdate, current_players),
+    offsetof(DisplayUpdateMessage, server_shutdown),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "game_over",
+    2,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_BOOL,
+    0,   /* quantifier_offset */
+    offsetof(DisplayUpdateMessage, game_over),
+    NULL,
+    NULL,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
+  {
+    "grid",
+    3,
+    PROTOBUF_C_LABEL_REPEATED,
+    PROTOBUF_C_TYPE_STRING,
+    offsetof(DisplayUpdateMessage, n_grid),
+    offsetof(DisplayUpdateMessage, grid),
     NULL,
     &protobuf_c_empty_string,
     0,             /* flags */
@@ -68,38 +92,53 @@ static const ProtobufCFieldDescriptor score_update__field_descriptors[2] =
   },
   {
     "scores",
-    2,
+    4,
     PROTOBUF_C_LABEL_REPEATED,
     PROTOBUF_C_TYPE_UINT32,
-    offsetof(ScoreUpdate, n_scores),
-    offsetof(ScoreUpdate, scores),
+    offsetof(DisplayUpdateMessage, n_scores),
+    offsetof(DisplayUpdateMessage, scores),
     NULL,
     NULL,
     0 | PROTOBUF_C_FIELD_FLAG_PACKED,             /* flags */
     0,NULL,NULL    /* reserved1,reserved2, etc */
   },
+  {
+    "current_players",
+    5,
+    PROTOBUF_C_LABEL_NONE,
+    PROTOBUF_C_TYPE_STRING,
+    0,   /* quantifier_offset */
+    offsetof(DisplayUpdateMessage, current_players),
+    NULL,
+    &protobuf_c_empty_string,
+    0,             /* flags */
+    0,NULL,NULL    /* reserved1,reserved2, etc */
+  },
 };
-static const unsigned score_update__field_indices_by_name[] = {
-  0,   /* field[0] = current_players */
-  1,   /* field[1] = scores */
+static const unsigned display_update_message__field_indices_by_name[] = {
+  4,   /* field[4] = current_players */
+  1,   /* field[1] = game_over */
+  2,   /* field[2] = grid */
+  3,   /* field[3] = scores */
+  0,   /* field[0] = server_shutdown */
 };
-static const ProtobufCIntRange score_update__number_ranges[1 + 1] =
+static const ProtobufCIntRange display_update_message__number_ranges[1 + 1] =
 {
   { 1, 0 },
-  { 0, 2 }
+  { 0, 5 }
 };
-const ProtobufCMessageDescriptor score_update__descriptor =
+const ProtobufCMessageDescriptor display_update_message__descriptor =
 {
   PROTOBUF_C__MESSAGE_DESCRIPTOR_MAGIC,
-  "ScoreUpdate",
-  "ScoreUpdate",
-  "ScoreUpdate",
+  "DisplayUpdateMessage",
+  "DisplayUpdateMessage",
+  "DisplayUpdateMessage",
   "",
-  sizeof(ScoreUpdate),
-  2,
-  score_update__field_descriptors,
-  score_update__field_indices_by_name,
-  1,  score_update__number_ranges,
-  (ProtobufCMessageInit) score_update__init,
+  sizeof(DisplayUpdateMessage),
+  5,
+  display_update_message__field_descriptors,
+  display_update_message__field_indices_by_name,
+  1,  display_update_message__number_ranges,
+  (ProtobufCMessageInit) display_update_message__init,
   NULL,NULL,NULL    /* reserved[123] */
 };
