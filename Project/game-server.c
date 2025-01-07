@@ -589,7 +589,6 @@ void serialize_message(display_update_message *msg, char *buffer, size_t *buffer
     memcpy(buffer, &msg->server_shutdown, sizeof(msg->server_shutdown));
     offset += sizeof(msg->server_shutdown);
 
-
     // Copy the game over flag
     memcpy(buffer + offset, &msg->game_over, sizeof(msg->game_over));
     offset += sizeof(msg->game_over);
@@ -610,6 +609,51 @@ void serialize_message(display_update_message *msg, char *buffer, size_t *buffer
 }
 
 /**
+ * @brief Serialize a display update message into a protocol buffer format
+ *
+ * @param msg Pointer to a display_update_message message
+ * @param buffer Pointer to a uint8_t pointer that will be allocated and filled with the serialized data
+ * @param size Pointer to a size_t variable that holds the size of the serialized data
+ *
+ * @note The caller is responsible for freeing the allocated buffer after use
+ */
+void update_to_ProtocolBuffer(display_update_message* msg, uint8_t** buffer, size_t* size) {
+    DisplayUpdateMessage display_update = DISPLAY_UPDATE_MESSAGE__INIT;
+    
+    // Set the boolean fields
+    display_update.server_shutdown = msg->server_shutdown;
+    display_update.game_over = msg->game_over;
+
+    // Convert grid to array of strings
+    char grid_strings[GRID_SIZE][GRID_SIZE + 1];  // +1 for null terminator
+    char* grid_ptrs[GRID_SIZE];  // Array of pointers to strings
+    for (int i = 0; i < GRID_SIZE; i++) {
+        memcpy(grid_strings[i], msg->grid[i], GRID_SIZE);
+        grid_strings[i][GRID_SIZE] = '\0';
+        grid_ptrs[i] = grid_strings[i];
+    }
+    display_update.n_grid = GRID_SIZE;
+    display_update.grid = grid_ptrs;
+
+    // Set the scores
+    display_update.n_scores = MAX_PLAYERS;
+    display_update.scores = msg->scores;
+
+    // Create a null-terminated string from current_players
+    char current_players_str[MAX_PLAYERS + 1];  // +1 for null terminator
+    memcpy(current_players_str, msg->current_players, MAX_PLAYERS);
+    current_players_str[MAX_PLAYERS] = '\0';
+    display_update.current_players = current_players_str;
+    
+    // Get size and allocate buffer
+    *size = display_update_message__get_packed_size(&display_update);
+    *buffer = malloc(*size);
+    
+    // Pack the message
+    display_update_message__pack(&display_update, *buffer);
+}
+
+/**
  * @brief This function acts as the parent process of the game server. 
  * It is used to handle the game logic and the communication with both the child process, the client and the outer-space-display
  */
@@ -620,6 +664,7 @@ void *game_handler(void *arg){
     client_to_server_message req;
     char buffer[1024];
     size_t buffer_size;
+    uint8_t* buffer_pointer;
 
     // Open ZMQ context and socket
     void *context = args->zmq_context;
@@ -694,6 +739,13 @@ void *game_handler(void *arg){
         // Send the topic and message as multipart
         zmq_send(pub_sub_socket, "UPDATE", 6, ZMQ_SNDMORE); // Send topic
         zmq_send(pub_sub_socket, buffer, buffer_size, 0);
+
+        update_to_ProtocolBuffer(&update, &buffer_pointer, &buffer_size);
+        
+        zmq_send(pub_sub_socket, "PB_UPDATE", 9, ZMQ_SNDMORE); // Send topic
+        zmq_send(pub_sub_socket, buffer_pointer, buffer_size, 0);     // Send score message
+        
+        free(buffer_pointer);
 
         if (req.type == LAST_TICK) {
             break;

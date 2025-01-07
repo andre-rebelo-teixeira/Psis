@@ -23,48 +23,83 @@ def initialize_curses(stdscr):
     curses.curs_set(0)
     stdscr.clear()
     draw_border(stdscr)
-    draw_table_header(stdscr)
     stdscr.refresh()
 
 def draw_border(stdscr):
     h, w = stdscr.getmaxyx()
     stdscr.box()
-    stdscr.addstr(0, w//2 - 6, " SCORE BOARD ")
+    stdscr.addstr(0, w//2 - 4, " SpcInvdrs ")
     stdscr.refresh()
 
-def draw_table_header(stdscr):
-    h, w = stdscr.getmaxyx()
-    header = "| Player | Score |"
-    stdscr.addstr(2, w//2 - len(header)//2, header)
-    stdscr.addstr(3, w//2 - len(header)//2, "-" * len(header))
+def draw_grid_border(stdscr, start_y, start_x, height, width):
+    # Draw horizontal lines
+    stdscr.addch(start_y - 1, start_x - 1, '┌')
+    stdscr.addch(start_y - 1, start_x + width, '┐')
+    stdscr.addch(start_y + height, start_x - 1, '└')
+    stdscr.addch(start_y + height, start_x + width, '┘')
+    
+    for x in range(start_x, start_x + width):
+        stdscr.addch(start_y - 1, x, '─')
+        stdscr.addch(start_y + height, x, '─')
+    
+    # Draw vertical lines
+    for y in range(start_y, start_y + height):
+        stdscr.addch(y, start_x - 1, '│')
+        stdscr.addch(y, start_x + width, '│')
 
-def update_display(stdscr, message):
-    h, w = stdscr.getmaxyx()
+def draw_scores_header(stdscr, start_x):
+    header = "| Player | Score | High Score |"
+    stdscr.addstr(4, start_x, " SCORE BOARD ")
+    stdscr.addstr(5, start_x, header)
+    stdscr.addstr(6, start_x, "-" * len(header))
 
-    # Clear the previous content
-    for i in range(4, h-2):
+def update_display(stdscr, message, high_scores):
+    h, w = stdscr.getmaxyx()
+    
+    # Clear the previous content (except border)
+    for i in range(1, h-1):
         stdscr.addstr(i, 1, " " * (w-2))
 
-    # Display server status
+    # Display status messages at the top
     server_status = f"Server Shutdown: {'Yes' if message.server_shutdown else 'No'}"
     game_status = f"Game Over: {'Yes' if message.game_over else 'No'}"
-    stdscr.addstr(4, w//2 - len(server_status)//2, server_status)
-    stdscr.addstr(5, w//2 - len(game_status)//2, game_status)
+    stdscr.addstr(1, w//2 - len(server_status)//2, server_status)
+    stdscr.addstr(2, w//2 - len(game_status)//2, game_status)
 
-    # Display the grid
-    row = 7
-    for grid_row in message.grid:
-        stdscr.addstr(row, w//2 - len(grid_row)//2, grid_row)
-        row += 1
+    # Calculate positions
+    grid_width = len(message.grid[0])
+    scores_width = 25
+    total_width = grid_width + scores_width + 4
+    start_x = (w - total_width) // 2
 
-    # Display players and scores
-    row += 1
+    # Draw grid on the left side
+    grid_start_x = start_x
+    grid_start_y = 5
+    stdscr.addstr(grid_start_y - 1, grid_start_x, "GAME GRID")
+    
+    # Draw grid border
+    draw_grid_border(stdscr, grid_start_y, grid_start_x, len(message.grid), grid_width)
+    
+    # Draw grid content
+    for i, grid_row in enumerate(message.grid):
+        stdscr.addstr(grid_start_y + i, grid_start_x, grid_row)
+
+    # Draw scores on the right side
+    scores_start_x = grid_start_x + grid_width + 4
+    draw_scores_header(stdscr, scores_start_x)
+    
+    # Display players, scores, and high scores
     for i, score in enumerate(message.scores):
         if i < len(message.current_players):
             player = message.current_players[i]
-            table_row = f"| {player:^6} | {score:^5} |"
-            stdscr.addstr(row, w//2 - len(table_row)//2, table_row)
-            row += 1
+            if player != ' ':
+                table_row = f"| {player:^6} | {score:^5} | {high_scores[player]:^10} |"
+                stdscr.addstr(6 + i, scores_start_x, table_row)
+
+    # Draw bottom border of the scores table
+    if any(p != ' ' for p in message.current_players):
+        bottom_border = "-" * len("| Player | Score | High Score |")
+        stdscr.addstr(6 + len(message.scores), scores_start_x, bottom_border)
 
     stdscr.refresh()
 
@@ -76,10 +111,12 @@ def main(stdscr):
     context = zmq.Context()
     subscriber = context.socket(zmq.SUB)
     subscriber.connect(PUBSUB_ADDRESS)
-    subscriber.setsockopt_string(zmq.SUBSCRIBE, "UPDATE")
+    subscriber.setsockopt_string(zmq.SUBSCRIBE, "PB_UPDATE")
 
     initialize_curses(stdscr)
-
+    
+    high_scores = defaultdict(int)
+    
     while True:
         # Receive message
         topic = subscriber.recv_string()
@@ -89,8 +126,13 @@ def main(stdscr):
         display_message = score_message_pb2.DisplayUpdateMessage()
         display_message.ParseFromString(message)
 
+        # Update high scores
+        for player, score in zip(display_message.current_players, display_message.scores):
+            if player != ' ':
+                high_scores[player] = max(high_scores[player], score)
+
         # Update the display
-        update_display(stdscr, display_message)
+        update_display(stdscr, display_message, high_scores)
 
     # Clean up
     subscriber.close()
