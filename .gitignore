@@ -1,0 +1,49 @@
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Ignore virtual environment directories
+env/
+venv/
+.virtualenv/
+
+# Ignore compiled Python files
+*.so
+*.dll
+
+# Ignore compiled executables
+*.out
+*.exe
+*.o
+*.a
+*.dylib
+*.lib
+
+# Ignore Protocol Buffers generated files (Python)
+*_pb2.py
+*_pb2_grpc.py
+
+# Ignore Protocol Buffers generated files (C/C++)
+*.pb.cc
+*.pb.h
+*.pb.c
+
+# Ignore Protocol Buffers generated gRPC files (C/C++)
+*_grpc.pb.cc
+*_grpc.pb.h
+
+# Ignore logs and temporary files
+*.log
+*.tmp
+*.swp
+*.bak
+.DS_Store
+
+# Ignore build directories
+build/
+dist/
+
+
+.vscode/**

@@ -26,29 +26,41 @@ volatile bool game_closed = false;
 volatile int current_score = 0;
 pthread_mutex_t mutex;
 
-void deserialize_message(const char *buffer, size_t buffer_size, display_update_message *msg)
-{
+void deserialize_message(const char *buffer, display_update_message *msg, size_t buffer_size) {
     size_t offset = 0;
 
+    if (buffer  == NULL || msg == NULL) {
+        return;
+    }
+
     // Copy the server shutdown flag
-    memcpy(&msg->server_shutdown, buffer, sizeof(msg->server_shutdown));
-    offset += sizeof(msg->server_shutdown);
+    if (sizeof(msg->server_shutdown) + offset < buffer_size) {
+        memcpy(&msg->server_shutdown, buffer, sizeof(msg->server_shutdown));
+        offset += sizeof(msg->server_shutdown);
+    }
 
     // Copy the game over flag
-    memcpy(&msg->game_over, buffer + offset, sizeof(msg->game_over));
-    offset += sizeof(msg->game_over);
+    if (sizeof(msg->game_over) + offset < buffer_size) {
+        memcpy(&msg->game_over, buffer + offset, sizeof(msg->game_over));
+        offset += sizeof(msg->game_over);
+    }
 
     // Copy the grid
-    memcpy(&msg->grid, buffer + offset, sizeof(msg->grid));
-    offset += sizeof(msg->grid);
+    if (sizeof(msg->grid) + offset < buffer_size) {
+        memcpy(&msg->grid, buffer + offset, sizeof(msg->grid));
+        offset += sizeof(msg->grid);
+    }
 
-    // Copy the scores
-    memcpy(&msg->scores, buffer + offset, sizeof(msg->scores));
-    offset += sizeof(msg->scores);
+    if (sizeof(msg->scores) + offset < buffer_size) {
+        memcpy(&msg->scores, buffer + offset, sizeof(msg->scores));
+        offset += sizeof(msg->scores);
+    }
 
     // Copy the current players
-    memcpy(&msg->current_players, buffer + offset, sizeof(msg->current_players));
-    offset += sizeof(msg->current_players);
+    if (sizeof(msg->current_players) + offset < buffer_size){
+        memcpy(&msg->current_players, buffer + offset, sizeof(msg->current_players));
+        offset += sizeof(msg->current_players);
+    }
 }
 
 /**
@@ -58,7 +70,7 @@ void deserialize_message(const char *buffer, size_t buffer_size, display_update_
  * @param grid the grid of the game
  * @param current_players the current players in the game
  */
-void draw_avatar_game(int scores[8], char grid[20][20], char current_players[8], bool game_over, char player_id)
+void draw_avatar_game(unsigned int scores[8], char grid[20][20], char current_players[8], bool game_over, char player_id)
 {
     draw_border_with_numbers();
 
@@ -183,7 +195,6 @@ void *input_client(void *arg)
 
     thread_arguments *args = (thread_arguments *)arg;
     void *socket = args->socket;
-    void *context = args->context;
     thread_type type = args->type;
     char player_char = args->player_char;
 
@@ -192,8 +203,6 @@ void *input_client(void *arg)
         perror("Invalid thread type");
         pthread_exit(NULL);
     }
-
-    int message_counter = 0;
 
     while (!game_closed)
     {
@@ -261,7 +270,7 @@ void *display_client(void *arg)
             continue;
         }
 
-        deserialize_message(buffer, bytes_received, &msg);
+        deserialize_message(buffer,  &msg, bytes_received);
 
         clear();
         draw_avatar_game(msg.scores, msg.grid, msg.current_players, msg.game_over, args->player_char);

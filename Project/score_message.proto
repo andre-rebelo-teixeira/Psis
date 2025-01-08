@@ -1,9 +1,0 @@
-syntax = "proto3";
-
-message DisplayUpdateMessage {
-    bool server_shutdown = 1; // Indicates if the server is shutting down
-    bool game_over = 2; // Indicates if the game is over
-    repeated string grid = 3; // 20x20 grid, represented as an array of strings
-    repeated uint32 scores = 4; // Array of scores for 8 players
-    string current_players = 5; // String containing current players' names (max 8 chars)
-}

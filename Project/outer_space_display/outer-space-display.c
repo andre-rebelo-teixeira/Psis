@@ -2,8 +2,7 @@
 #include <ncurses.h>
 #include <string.h>
 
-#include "messages.h"
-#include "utils.h"
+#include "outer-space-display.h"
 
 /**
  * @brief Deserialize the update the message for it to be obtained from the buffer
@@ -12,30 +11,41 @@
  * @param buffer_size the size of the buffer
  * @param msg the message to be deserialized
  */
-void deserialize_message(const char *buffer, size_t buffer_size, display_update_message *msg) {
+void deserialize_message(const char *buffer, display_update_message *msg, size_t buffer_size) {
     size_t offset = 0;
 
+    if (buffer  == NULL || msg == NULL) {
+        return;
+    }
 
     // Copy the server shutdown flag
-    // Copy the server shutdown flag
-    memcpy(&msg->server_shutdown, buffer, sizeof(msg->server_shutdown));
-    offset += sizeof(msg->server_shutdown);
+    if (sizeof(msg->server_shutdown) + offset < buffer_size) {
+        memcpy(&msg->server_shutdown, buffer, sizeof(msg->server_shutdown));
+        offset += sizeof(msg->server_shutdown);
+    }
 
     // Copy the game over flag
-    memcpy(&msg->game_over, buffer + offset, sizeof(msg->game_over));
-    offset += sizeof(msg->game_over);
+    if (sizeof(msg->game_over) + offset < buffer_size) {
+        memcpy(&msg->game_over, buffer + offset, sizeof(msg->game_over));
+        offset += sizeof(msg->game_over);
+    }
 
     // Copy the grid
-    memcpy(&msg->grid, buffer + offset, sizeof(msg->grid));
-    offset += sizeof(msg->grid);
+    if (sizeof(msg->grid) + offset < buffer_size) {
+        memcpy(&msg->grid, buffer + offset, sizeof(msg->grid));
+        offset += sizeof(msg->grid);
+    }
 
-    // Copy the scores
-    memcpy(&msg->scores, buffer + offset, sizeof(msg->scores));
-    offset += sizeof(msg->scores);
+    if (sizeof(msg->scores) + offset < buffer_size) {
+        memcpy(&msg->scores, buffer + offset, sizeof(msg->scores));
+        offset += sizeof(msg->scores);
+    }
 
     // Copy the current players
-    memcpy(&msg->current_players, buffer + offset, sizeof(msg->current_players));
-    offset += sizeof(msg->current_players);
+    if (sizeof(msg->current_players) + offset < buffer_size){
+        memcpy(&msg->current_players, buffer + offset, sizeof(msg->current_players));
+        offset += sizeof(msg->current_players);
+    }
 }
 
 /**
@@ -45,7 +55,7 @@ void deserialize_message(const char *buffer, size_t buffer_size, display_update_
  * @param grid the grid of the game
  * @param current_players the current players in the game
  */
-void draw_avatar_game(int scores[8], char grid[20][20], char current_players[8], bool game_over) {
+void draw_avatar_game(unsigned int scores[8], char grid[20][20], char current_players[8], bool game_over) {
     draw_border_with_numbers();
 
     // Draw grid
@@ -133,7 +143,7 @@ int main(){
 
         if (bytes_received > 0) {
             // Deserialize and process the message
-            deserialize_message(buffer, bytes_received, &msg);
+            deserialize_message(buffer, &msg, bytes_received);
             
             clear();
             draw_avatar_game(msg.scores, msg.grid, msg.current_players, msg.game_over);

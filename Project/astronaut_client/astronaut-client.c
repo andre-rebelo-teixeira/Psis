@@ -5,7 +5,6 @@
 #include "utils.h"
 
 int main(){
-    int n = 0;
     int key;
     client_to_server_message msg; // Message to be sent to the server
     server_to_client_message reply; // Reply from the server
@@ -21,7 +20,6 @@ int main(){
     zmq_send(socket, &msg, sizeof(msg), 0);
     zmq_recv(socket, &reply, sizeof(reply), 0);
     character = reply.character;
-    int initial_game_over = reply.game_over;
 
     // Check if assigned chatacter is valid | Check if server is full
     if(character != ' ') {

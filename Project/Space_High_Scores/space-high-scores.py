@@ -1,14 +1,22 @@
 import zmq
-import score_message_pb2
 import curses
 from curses import wrapper
 import os
 import re
 from collections import defaultdict
 
+#get current directory
+current_dir = os.getcwd()
+
 # utils.h file location
-current_dir = os.path.dirname(os.path.abspath(__file__))
-header_file_path = os.path.join(current_dir, 'utils.h')
+common_dir = os.path.join(current_dir, "..", "common")
+header_file_path = os.path.join(common_dir, 'utils.h')
+print(f"common dir {common_dir}")
+
+# Add common directory to include path
+import sys
+sys.path.append(common_dir)
+import score_message_pb2
 
 def parse_pubsub_address(header_file_path):
     with open(header_file_path, 'r') as file:

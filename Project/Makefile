@@ -1,26 +1,29 @@
+.PHONY: all clean
+
+# Subdirectories
+SUBDIRS = outer_space_display astronaut_client  astronaut_display_client game_server
+
+# Path to the common folder
+COMMON_PATH = common
+COMMON_OBJ = $(COMMON_PATH)/utils.o
+
+# Compiler settings
 CC = gcc
-NCURSES = -lncurses
-ZMQ = -lzmq
-PROTOBUF = -lprotobuf-c
+CFLAGS = -Wall -Wextra -I$(COMMON_PATH)
 
-all: protobuf game-server astronaut-display-client outer-space-display astronaut-client  
+# Build all targets
+all: common  $(SUBDIRS)
 
-protobuf: score_message.proto
-	protoc --c_out=. score_message.proto
-	protoc --python_out=. score_message.proto
+common:
+	$(MAKE) -C $(COMMON_PATH)  
 
-game-server: game-server.c utils.c utils.h messages.h list.h game-server.h score_message.pb-c.c
-	$(CC) game-server.c utils.c score_message.pb-c.c -o game-server $(NCURSES) $(ZMQ) $(PROTOBUF)
-        
-astronaut-client: astronaut-client.c utils.c utils.h messages.h 
-	$(CC) astronaut-client.c utils.c -o astronaut-client $(NCURSES) $(ZMQ)
+# Invoke child Makefile from within its directory
+$(SUBDIRS): $(COMMON_OBJ)
+	$(MAKE) -C $@  COMMON_PATH=../$(COMMON_PATH) COMMON_OBJ=../$(COMMON_OBJ)
 
-outer-space-display: outer-space-display.c utils.c utils.h messages.h
-	$(CC) outer-space-display.c utils.c -o outer-space-display $(NCURSES) $(ZMQ)
-
-astronaut-display-client: astronaut-display-client.c astronaut-display-client.h utils.c utils.h messages.h
-	$(CC) astronaut-display-client.c utils.c -o astronaut-display-client $(NCURSES) $(ZMQ)
-
+# Clean rule
 clean:
-	rm -f game-server astronaut-client outer-space-display astronaut-display-client score_message.pb-c.c score_message.pb-c.h score_message_pb2.py
-
+	rm -f $(COMMON_OBJ)
+	@for dir in $(SUBDIRS); do \
+		$(MAKE) -C $$dir clean; \
+	done

@@ -661,7 +661,6 @@ void *game_handler(void *arg){
     thread_args *args = (thread_args *)arg;
     GameState *state = args->state;
     
-    client_to_server_message req;
     char buffer[1024];
     size_t buffer_size;
     uint8_t* buffer_pointer;
@@ -813,8 +812,6 @@ void *tick_handler(void *arg) {
     msg.move = UP;
     msg.type = TICK;
 
-    server_to_client_message response;
-
     while (true) {
         server_to_client_message response;
         zmq_send(socket, &msg, sizeof(client_to_server_message), 0); // Send message to parent
@@ -841,8 +838,6 @@ void* keyboard_handler(void* arg) {
     thread_args* args = (thread_args*)arg;
     int ch;
     position pos;
-    char buffer[1024];
-    size_t buffer_size;
    
     void *context = args->zmq_context;
     void *socket = zmq_socket(context, ZMQ_PUB);
