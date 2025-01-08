@@ -1,0 +1,26 @@
+# Ignore executables
+astronaut_client/astronaut-client
+astronaut_display_client/astronaut-display-client
+game_server/game-server
+outer_space_display/outer_space_display
+
+# Ignore compiled object files
+*.o
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore protobuf compiled files
+*.pb-c.c
+*.pb-c.h
+
+# Ignore PDF documents
+*.pdf
+
+# Ignore temporary files
+*.tmp
+*.log
+.DS_Store
+
