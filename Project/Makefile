@@ -1,29 +1,23 @@
-.PHONY: all clean
+# Variables
+COMMON_DIR = common
+SUBDIRS = astronaut_client astronaut_display_client game_server outer_space_display
+COMMON_OBJS = $(COMMON_DIR)/score_message.pb-c.o $(COMMON_DIR)/utils.o
+CFLAGS_COMMON = -I../$(COMMON_DIR)
 
-# Subdirectories
-SUBDIRS = outer_space_display astronaut_client  astronaut_display_client game_server
+# Targets
+all: common_all subdirs_all
 
-# Path to the common folder
-COMMON_PATH = common
-COMMON_OBJ = $(COMMON_PATH)/utils.o
+# Build `common` first
+common_all:
+	$(MAKE) -C $(COMMON_DIR) all
 
-# Compiler settings
-CC = gcc
-CFLAGS = -Wall -Wextra -I$(COMMON_PATH)
+# Build all subdirectories
+subdirs_all: common_all
+	$(foreach dir, $(SUBDIRS), $(MAKE) -C $(dir) COMMON_OBJS="$(abspath $(COMMON_OBJS))" CFLAGS+="$(CFLAGS_COMMON)" all;)
 
-# Build all targets
-all: common  $(SUBDIRS)
-
-common:
-	$(MAKE) -C $(COMMON_PATH)  
-
-# Invoke child Makefile from within its directory
-$(SUBDIRS): $(COMMON_OBJ)
-	$(MAKE) -C $@  COMMON_PATH=../$(COMMON_PATH) COMMON_OBJ=../$(COMMON_OBJ)
-
-# Clean rule
+# Clean everything
 clean:
-	rm -f $(COMMON_OBJ)
-	@for dir in $(SUBDIRS); do \
-		$(MAKE) -C $$dir clean; \
-	done
+	$(MAKE) -C $(COMMON_DIR) clean
+	$(foreach dir, $(SUBDIRS), $(MAKE) -C $(dir) clean;)
+
+.PHONY: all common_all subdirs_all clean
