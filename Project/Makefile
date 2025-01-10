@@ -1,7 +1,7 @@
 # Variables
 COMMON_DIR = common
 SUBDIRS = astronaut_client astronaut_display_client game_server outer_space_display
-COMMON_OBJS = $(COMMON_DIR)/score_message.pb-c.o $(COMMON_DIR)/utils.o
+COMMON_OBJS = $(COMMON_DIR)/messages.pb-c.o $(COMMON_DIR)/utils.o
 CFLAGS_COMMON = -I../$(COMMON_DIR)
 
 # Targets

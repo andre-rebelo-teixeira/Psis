@@ -19,7 +19,7 @@
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
 #define MAX_PLAYERS 8
-#define START_ALIENS_COUNT 85 
+#define START_ALIENS_COUNT 85
 #define GRID_SIZE 20
 #define MAX_MSG_LEN 256
 

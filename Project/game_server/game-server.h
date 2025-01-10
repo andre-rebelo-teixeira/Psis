@@ -10,7 +10,7 @@
 #include <stdbool.h>
 #include "list.h"
 #include "messages.h"
-#include "score_message.pb-c.h"
+#include "messages.pb-c.h"
 #include "utils.h"
 
 // Function declarations

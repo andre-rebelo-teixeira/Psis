@@ -26,38 +26,46 @@ volatile bool game_closed = false;
 volatile int current_score = 0;
 pthread_mutex_t mutex;
 
+/**
+ * @brief Deserialize the update the message for it to be obtained from the buffer
+ * 
+ * @param buffer the buffer where the message will be deserialized
+ * @param buffer_size the size of the buffer
+ * @param msg the message to be deserialized
+ */
 void deserialize_message(const char *buffer, display_update_message *msg, size_t buffer_size) {
     size_t offset = 0;
 
-    if (buffer  == NULL || msg == NULL) {
+    if (buffer == NULL || msg == NULL) {
         return;
     }
 
     // Copy the server shutdown flag
-    if (sizeof(msg->server_shutdown) + offset < buffer_size) {
-        memcpy(&msg->server_shutdown, buffer, sizeof(msg->server_shutdown));
+    if (offset + sizeof(msg->server_shutdown) <= buffer_size) {
+        memcpy(&msg->server_shutdown, buffer + offset, sizeof(msg->server_shutdown));
         offset += sizeof(msg->server_shutdown);
     }
 
     // Copy the game over flag
-    if (sizeof(msg->game_over) + offset < buffer_size) {
+    if (offset + sizeof(msg->game_over) <= buffer_size) {
         memcpy(&msg->game_over, buffer + offset, sizeof(msg->game_over));
         offset += sizeof(msg->game_over);
     }
 
     // Copy the grid
-    if (sizeof(msg->grid) + offset < buffer_size) {
+    if (offset + sizeof(msg->grid) <= buffer_size) {
         memcpy(&msg->grid, buffer + offset, sizeof(msg->grid));
         offset += sizeof(msg->grid);
     }
 
-    if (sizeof(msg->scores) + offset < buffer_size) {
+    // Copy the scores
+    if (offset + sizeof(msg->scores) <= buffer_size) {
         memcpy(&msg->scores, buffer + offset, sizeof(msg->scores));
         offset += sizeof(msg->scores);
     }
 
     // Copy the current players
-    if (sizeof(msg->current_players) + offset < buffer_size){
+    if (offset + sizeof(msg->current_players) <= buffer_size){
         memcpy(&msg->current_players, buffer + offset, sizeof(msg->current_players));
         offset += sizeof(msg->current_players);
     }

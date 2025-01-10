@@ -16,7 +16,7 @@ print(f"common dir {common_dir}")
 # Add common directory to include path
 import sys
 sys.path.append(common_dir)
-import score_message_pb2
+import messages_pb2 as messages
 
 def parse_pubsub_address(header_file_path):
     with open(header_file_path, 'r') as file:
@@ -88,26 +88,35 @@ def update_display(stdscr, message, high_scores):
     # Draw grid border
     draw_grid_border(stdscr, grid_start_y, grid_start_x, len(message.grid), grid_width)
     
-    # Draw grid content
-    for i, grid_row in enumerate(message.grid):
-        stdscr.addstr(grid_start_y + i, grid_start_x, grid_row)
+    # Draw grid content or game over message
+    if message.game_over:
+        # Calculate center position within the grid
+        grid_center_x = grid_start_x + (grid_width // 2)
+        stdscr.addstr(grid_start_y + 8, grid_center_x - 2, "GAME")
+        stdscr.addstr(grid_start_y + 10, grid_center_x - 1, "HAS")
+        stdscr.addstr(grid_start_y + 12, grid_center_x - 2, "ENDED")
+    else:
+        for i, grid_row in enumerate(message.grid):
+            stdscr.addstr(grid_start_y + i, grid_start_x, grid_row)
 
     # Draw scores on the right side
     scores_start_x = grid_start_x + grid_width + 4
     draw_scores_header(stdscr, scores_start_x)
     
     # Display players, scores, and high scores
+    active_players = 0
     for i, score in enumerate(message.scores):
         if i < len(message.current_players):
             player = message.current_players[i]
             if player != ' ':
                 table_row = f"| {player:^6} | {score:^5} | {high_scores[player]:^10} |"
-                stdscr.addstr(6 + i, scores_start_x, table_row)
+                stdscr.addstr(6 + active_players, scores_start_x, table_row)
+                active_players += 1
 
-    # Draw bottom border of the scores table
-    if any(p != ' ' for p in message.current_players):
+    # Draw bottom border of the scores table only if there are active players
+    if active_players > 0:
         bottom_border = "-" * len("| Player | Score | High Score |")
-        stdscr.addstr(6 + len(message.scores), scores_start_x, bottom_border)
+        stdscr.addstr(6 + active_players, scores_start_x, bottom_border)
 
     stdscr.refresh()
 
@@ -131,7 +140,7 @@ def main(stdscr):
         message = subscriber.recv()
 
         # Parse the display update message
-        display_message = score_message_pb2.DisplayUpdateMessage()
+        display_message = messages.DisplayUpdateMessage()
         display_message.ParseFromString(message)
 
         # Update high scores

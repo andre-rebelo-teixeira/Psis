@@ -14,7 +14,7 @@
 
 #include "list.h"
 #include "messages.h"
-#include "score_message.pb-c.h"
+#include "messages.pb-c.h"
 #include "utils.h"
 #include "game-server.h"
 
@@ -474,9 +474,8 @@ server_to_client_message handle_new_message(GameState* state,  client_to_server_
     server_to_client_message response; 
     response.character = msg.character;
     response.game_over = state->game_over;
-    response.score = 0;
+    response.score = state->players[msg.character - 'A'].score;
     response.status = true;
-    char name = ' ';
 
     switch (msg.type) {
         case ASTRONAUT_CONNECT:
@@ -494,7 +493,6 @@ server_to_client_message handle_new_message(GameState* state,  client_to_server_
         case ASTRONAUT_ZAP:
             if (!state->game_over){
                 state->game_over = handle_astronaut_zap(state, msg);
-                response.score = state->players[name - 'A'].score;
             }
             break;
         case ASTRONAUT_DISCONNECT:
@@ -723,10 +721,8 @@ void *game_handler(void *arg){
         update.game_over = state->game_over;
         update.server_shutdown =  false;
         for (unsigned int i = 0; i < MAX_PLAYERS; i++) {
-            if (state->players[i].name != ' ') {
-                update.current_players[i] = state->players[i].name;
-                update.scores[i] = state->players[i].score;
-            }
+            update.current_players[i] = state->players[i].name;
+            update.scores[i] = state->players[i].score;
         }
 
         if (req.type == LAST_TICK) {
