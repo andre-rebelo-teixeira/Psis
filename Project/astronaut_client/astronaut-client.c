@@ -21,7 +21,6 @@ int main(){
     zmq_recv(socket, &reply, sizeof(reply), 0);
     character = reply.character;
     
-    bool last_game_over_state = false;
     // Check if assigned chatacter is valid | Check if server is full
     if(character != ' ') {
 
@@ -82,7 +81,6 @@ int main(){
             // Send the message to the server
             zmq_send(socket, &msg, sizeof(msg), 0);
             zmq_recv(socket, &reply, sizeof(reply), 0);
-
        
             mvprintw(1, 0, "Score: %d\n", reply.score);
 
@@ -100,7 +98,6 @@ int main(){
                 move(0, 0);
                 clrtoeol();
                 mvprintw(0, 0, "Player + %c", character);
-
             }
 
         }
