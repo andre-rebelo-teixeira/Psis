@@ -90,21 +90,17 @@ int main(){
                 break;
             }
 
-            if (reply.game_over != last_game_over_state) {
-                if (reply.game_over == true) {
-                    // Clear line before printing
-                    move(0, 0);
-                    clrtoeol();
-                    mvprintw(0, 0, "Game has ended\n");
-                } else {
-                    // Clear line before printing
-                    move(0, 0);
-                    clrtoeol();
-                    mvprintw(0, 0, "Player + %c", character);
+            if (reply.game_over == true) {
+                // Clear line before printing
+                move(0, 0);
+                clrtoeol();
+                mvprintw(0, 0, "Game has ended\n");
+            } else {
+                // Clear line before printing
+                move(0, 0);
+                clrtoeol();
+                mvprintw(0, 0, "Player + %c", character);
 
-                }
-
-                last_game_over_state = reply.game_over;
             }
 
         }
